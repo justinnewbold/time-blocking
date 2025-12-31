@@ -120,6 +120,15 @@ export default function Frog() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [scheduleNotification, setScheduleNotification] = useState(null);
   const [showBackgroundSelector, setShowBackgroundSelector] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState({
+    pushNotifications: true,
+    soundEffects: true,
+    vibration: true,
+    showTaskCount: true,
+    autoFilterByEnergy: true,
+    compactMode: false
+  });
   const [expandedTask, setExpandedTask] = useState(null);
   const [subtasks, setSubtasks] = useState({});  // { taskId: [{id, title, completed}] }
   const [newSubtask, setNewSubtask] = useState('');
@@ -203,6 +212,12 @@ export default function Frog() {
         const todayMoods = savedMoodLog.filter(m => new Date(m.timestamp).toDateString() === today);
         setMoodLog(todayMoods);
         
+        // Load settings
+        const savedSettings = Storage.get('settings', null);
+        if (savedSettings) {
+          setSettings(prev => ({ ...prev, ...savedSettings }));
+        }
+        
         // Check for rollover tasks (from previous days)
         checkRolloverTasks();
         
@@ -237,6 +252,46 @@ export default function Frog() {
       Storage.set('moodLog', [...otherDays, ...moodLog]);
     }
   }, [moodLog]);
+
+  // Save settings when changed
+  useEffect(() => {
+    Storage.set('settings', settings);
+  }, [settings]);
+
+  // Toggle a setting
+  const toggleSetting = (key) => {
+    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+    
+    // Handle push notification permission
+    if (key === 'pushNotifications') {
+      if (!settings.pushNotifications) {
+        // Turning ON - request permission
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission();
+        }
+      }
+    }
+    
+    // Play feedback if sounds enabled
+    if (settings.soundEffects) {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.frequency.value = 800;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+        osc.start(audioContext.currentTime);
+        osc.stop(audioContext.currentTime + 0.1);
+      } catch (e) {}
+    }
+    if (settings.vibration && navigator.vibrate) {
+      navigator.vibrate(20);
+    }
+  };
 
   // Quick mood change function
   const changeMood = (newEnergy, note = '') => {
@@ -1226,7 +1281,7 @@ export default function Frog() {
               <span className="text-xs">Stats</span>
             </Link>
             <button 
-              onClick={() => setShowBackgroundSelector(true)}
+              onClick={() => setShowSettings(true)}
               className="flex flex-col items-center text-white/50 hover:text-white/80 transition-colors"
             >
               <div className="glass-icon-sm w-10 h-10 flex items-center justify-center mb-1 opacity-60">
@@ -1236,6 +1291,223 @@ export default function Frog() {
             </button>
           </div>
         </div>
+
+        {/* Settings Modal */}
+        {showSettings && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSettings(false)} />
+            <div className="relative w-full max-w-md mx-4 mb-4 sm:mb-0 animate-slide-up max-h-[80vh] overflow-hidden">
+              <div className="glass-card p-6 overflow-y-auto max-h-[80vh]">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-white">Settings</h2>
+                  <button 
+                    onClick={() => setShowSettings(false)} 
+                    className="glass-icon-sm w-10 h-10 flex items-center justify-center text-white/60"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                {/* Notifications Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Notifications</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🔔</span>
+                        <div>
+                          <p className="text-white font-medium">Push Notifications</p>
+                          <p className="text-white/40 text-xs">Timer completion alerts</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('pushNotifications')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.pushNotifications ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.pushNotifications ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🔊</span>
+                        <div>
+                          <p className="text-white font-medium">Sound Effects</p>
+                          <p className="text-white/40 text-xs">Task completion sounds</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('soundEffects')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.soundEffects ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.soundEffects ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">📳</span>
+                        <div>
+                          <p className="text-white font-medium">Vibration</p>
+                          <p className="text-white/40 text-xs">Haptic feedback</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('vibration')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.vibration ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.vibration ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Display Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Display</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🔢</span>
+                        <div>
+                          <p className="text-white font-medium">Show Task Count</p>
+                          <p className="text-white/40 text-xs">Display total tasks remaining</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('showTaskCount')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.showTaskCount ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.showTaskCount ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">⚡</span>
+                        <div>
+                          <p className="text-white font-medium">Auto-Filter by Energy</p>
+                          <p className="text-white/40 text-xs">Show tasks matching your energy</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('autoFilterByEnergy')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.autoFilterByEnergy ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.autoFilterByEnergy ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">📱</span>
+                        <div>
+                          <p className="text-white font-medium">Compact Mode</p>
+                          <p className="text-white/40 text-xs">Smaller cards, more tasks visible</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('compactMode')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.compactMode ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.compactMode ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Appearance Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Appearance</h3>
+                  <button
+                    onClick={() => { setShowSettings(false); setShowBackgroundSelector(true); }}
+                    className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">🎨</span>
+                      <div className="text-left">
+                        <p className="text-white font-medium">Background Theme</p>
+                        <p className="text-white/40 text-xs">Choose your vibe</p>
+                      </div>
+                    </div>
+                    <span className="text-white/40">→</span>
+                  </button>
+                </div>
+                
+                {/* Reminders Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Reminders</h3>
+                  <button
+                    onClick={() => { setShowSettings(false); setShowNotifications(true); }}
+                    className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">⏰</span>
+                      <div className="text-left">
+                        <p className="text-white font-medium">Schedule Reminders</p>
+                        <p className="text-white/40 text-xs">Set frog reminders</p>
+                      </div>
+                    </div>
+                    <span className="text-white/40">→</span>
+                  </button>
+                </div>
+                
+                {/* Data Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Data</h3>
+                  <div className="space-y-3">
+                    <div className="p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-xl">💾</span>
+                        <p className="text-white font-medium">Storage</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-white/5 rounded-lg p-2">
+                          <p className="text-white/40">Tasks</p>
+                          <p className="text-white font-medium">{tasks.length + completedTasks.length}</p>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-2">
+                          <p className="text-white/40">Mood Logs</p>
+                          <p className="text-white font-medium">{moodLog.length}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* About */}
+                <div className="text-center pt-4 border-t border-white/10">
+                  <p className="text-white/30 text-xs">Frog 🐸 v1.0</p>
+                  <p className="text-white/20 text-xs">Compassionate productivity for ADD minds</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Quick Mood Change Modal */}
         {showMoodPicker && (
