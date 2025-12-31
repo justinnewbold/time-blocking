@@ -1,11 +1,11 @@
 {
-  "name": "FocusFlow - Compassionate Productivity",
-  "short_name": "FocusFlow",
-  "description": "A time-blocking app that works with your brain, not against it. Features energy-based task filtering, gamification, and the Eat the Frog methodology.",
+  "name": "Frog - Eat Your Frogs First 🐸",
+  "short_name": "Frog",
+  "description": "Compassionate productivity app that works with your brain, not against it. Tackle your hardest tasks first with energy-based task filtering and gamification.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
-  "theme_color": "#8b5cf6",
+  "theme_color": "#22c55e",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "en-US",
@@ -63,21 +63,21 @@
   ],
   "shortcuts": [
     {
-      "name": "Quick Check-In",
+      "name": "Energy Check-In",
       "short_name": "Check-In",
       "description": "Start your day with an energy check",
       "url": "/?action=checkin",
       "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     },
     {
-      "name": "Pick a Frog",
-      "short_name": "Frog",
-      "description": "Choose your hardest task to tackle first",
+      "name": "Pick Your Frog 🐸",
+      "short_name": "Pick Frog",
+      "description": "Choose your hardest task to eat first",
       "url": "/?action=frog",
       "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     },
     {
-      "name": "Start Focus",
+      "name": "Start Focus Timer",
       "short_name": "Focus",
       "description": "Jump straight into focus mode",
       "url": "/?action=timer",
