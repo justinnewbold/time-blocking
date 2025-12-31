@@ -8,97 +8,82 @@
 |------|-------|
 | **Live App** | https://frog.newbold.cloud |
 | **Stats Dashboard** | https://frog.newbold.cloud/stats |
-| **Vercel Dashboard** | https://vercel.com/newbold-cloud/time-blocking |
 | **GitHub Repo** | https://github.com/justinnewbold/time-blocking |
-| **Supabase Project** | `wektbfkzbxvtxsremnnk` (Vercel project) |
+| **Vercel Dashboard** | https://vercel.com/newbold-cloud/time-blocking |
 | **Supabase Dashboard** | https://supabase.com/dashboard/project/wektbfkzbxvtxsremnnk |
-
----
-
-## 🔑 Key Configuration
-
-### Vercel
-- **Team ID**: `team_SXtSdRdWwV7wzMteZsU2h1AF`
-- **Project ID**: `prj_VHQLqK8jUwuukC0h70G95aaSkxk0`
-- **Domain**: `frog.newbold.cloud`
-
-### Supabase
-- **Project Ref**: `wektbfkzbxvtxsremnnk`
-- **URL**: `https://wektbfkzbxvtxsremnnk.supabase.co`
-- **Anon Key**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indla3RiZmt6Ynh2dHhzcmVtbm5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4NDcyNjMsImV4cCI6MjA4MTQyMzI2M30.-oLnJRoDBpqgzDZ7bM3fm6TXBNGH6SaRpnKDiHQZ3_4`
-
-### Database Tables
-- `focusflow_tasks` - All tasks (30 seeded)
-- `focusflow_user_progress` - XP, level, streaks
-- `focusflow_sessions` - Focus session history
-- `focusflow_energy_log` - Daily energy tracking
-
-### User
-- **User ID**: `justin`
-- **Categories**: patty-shack, admin, home, family, music, personal
 
 ---
 
 ## ✅ Completed Features
 
-- [x] Core app with energy check-in, task management, focus timer
+### Core Functionality
+- [x] Energy check-in with 4 levels
+- [x] Task management with categories
+- [x] Focus timer with presets (5, 15, 25, 45 min)
+- [x] "Eat the Frog" methodology
 - [x] Gamification (XP, levels, streaks)
-- [x] "Eat the Frog" methodology - tackle hardest task first
-- [x] Category filtering and energy-based task filtering
-- [x] PWA support (installable, offline capable)
-- [x] Service worker with caching
-- [x] Supabase database integration
-- [x] Cloud sync with offline fallback
-- [x] Add task functionality
-- [x] Timer presets (5, 15, 25, 45 min)
-- [x] Celebration animations on task completion
-- [x] Sync status indicator
-- [x] **Rebrand to "Frog"** ✅
-- [x] **Domain frog.newbold.cloud connected** ✅
-- [x] **Stats Dashboard** ✅
-  - Weekly XP bar chart
-  - Focus time tracking chart
-  - Category breakdown with progress bars
-  - 14-day streak calendar
-  - Level progress display
-  - Quick stats cards
-- [x] **Timer Completion Notifications** ✅ (completed Dec 31, 2025)
-  - Push notification when timer ends
-  - Sound effect (sine wave tone)
-  - Vibration pattern for mobile
-  - Shows XP earned and task name
-  - Notification settings panel (🔔 button)
-  - Enable/disable per notification type
-  - Test notification button
+- [x] Supabase cloud sync
+- [x] PWA support (installable)
+
+### UI/UX ✨ NEW
+- [x] **iOS Liquid Glass Design** - Complete UI overhaul
+- [x] **Customizable Majestic Backgrounds** - 8 stunning options
+- [x] **Per-Page Backgrounds** - Different themes for each screen
+- [x] **Glass Icons & Cards** - Frosted glass effect throughout
+- [x] **Animated Stars Overlay** - Toggle on/off
+- [x] **iOS-Style Tab Bar** - Native feel navigation
+- [x] **Floating Action Buttons** - Glass styled
+
+### Notifications
+- [x] Timer completion push notifications
+- [x] Sound effects on completion
+- [x] Vibration patterns
+- [x] Notification settings panel
+
+### Stats Dashboard
+- [x] Weekly XP chart
+- [x] Category breakdown
+- [x] 14-day streak calendar
+- [x] Level progress display
+
+---
+
+## 🎨 Available Backgrounds
+
+| Name | Emoji | Best For |
+|------|-------|----------|
+| Aurora | 🌌 | Relaxed focus |
+| Northern Lights | ✨ | Evening sessions |
+| Sunset | 🌅 | Wind down |
+| Ocean | 🌊 | Calm productivity |
+| Forest | 🌲 | **Default Home** |
+| Cosmos | 🪐 | **Default Stats** |
+| Midnight | 🌙 | Late night work |
+| Rose | 🌹 | Romantic mood |
 
 ---
 
 ## 📋 To-Do List
 
 ### 🔴 Priority 1 - Next Up
-- [ ] **Daily Check-in Reminders** - Morning push notification to set energy
-- [ ] **Streak Protection Alerts** - Evening reminder to maintain streak
+- [ ] **Daily Check-in Reminders** - Morning push notifications
+- [ ] **Authentication** - Supabase Auth login
 
 ### 🟠 Priority 2 - High Impact
-- [ ] **Authentication (Supabase Auth)** - Email/password or magic link login
-- [ ] **Recurring Tasks** - Daily/weekly/monthly repeat options
-- [ ] **Apple Reminders Sync** - Two-way sync with iOS Reminders
+- [ ] **Recurring Tasks** - Daily/weekly repeat
+- [ ] **Apple Reminders Sync** - Two-way sync
 
-### 🟡 Priority 3 - Medium Impact
-- [ ] **Google Calendar Integration** - Auto-block time during focus sessions
-- [ ] **Due Dates & Priorities** - Add deadlines, sort by urgency
-- [ ] **AI Task Assistant** - Claude API to suggest tasks based on energy
+### 🟡 Priority 3 - Medium
+- [ ] **Google Calendar** - Auto-block time
+- [ ] **Due Dates** - Task deadlines
+- [ ] **Sound Effects Library** - More audio options
 
 ### 🟢 Priority 4 - Future
-- [ ] **Apple Watch App** - Quick task completion from wrist
-- [ ] **Siri Shortcuts** - Voice commands to add tasks
-- [ ] **Family Sharing** - Let Aimee see/add family tasks
-- [ ] **Data Export** - CSV export for analysis
-- [ ] **Achievements System** - Unlock badges for milestones
-- [ ] **Dark/Light Theme Toggle** - User preference for theme
-- [ ] **Task Notes & Subtasks** - Add details and checklists to tasks
-- [ ] **Widget Support** - iOS/Android home screen widgets
-- [ ] **Settings Page** - Customize timer presets, notifications, themes
+- [ ] Apple Watch App
+- [ ] Siri Shortcuts
+- [ ] Family Sharing
+- [ ] Achievements System
+- [ ] Widget Support
 
 ---
 
@@ -107,130 +92,93 @@
 ```
 src/
 ├── app/
-│   ├── page.jsx          # Main app component (Frog)
-│   ├── layout.jsx        # Root layout with PWA meta tags
-│   ├── globals.css       # Tailwind styles
+│   ├── page.jsx          # Main app (liquid glass UI)
+│   ├── layout.jsx        # Root layout with BackgroundProvider
+│   ├── globals.css       # Liquid glass design system
 │   ├── stats/
-│   │   └── page.jsx      # Stats Dashboard 📊
+│   │   └── page.jsx      # Stats Dashboard
 │   └── offline/
-│       └── page.jsx      # Offline fallback page
+│       └── page.jsx      # Offline fallback
 ├── components/
-│   ├── InstallPrompt.jsx # PWA install prompt (green theme)
+│   ├── BackgroundContext.jsx   # 🆕 Background theming
+│   ├── BackgroundSelector.jsx  # 🆕 Background picker UI
+│   ├── InstallPrompt.jsx
 │   ├── ServiceWorkerRegister.jsx
-│   └── NotificationManager.jsx  # 🔔 Notification settings
+│   └── NotificationManager.jsx
 ├── lib/
-│   └── supabase.js       # Supabase client & helpers
+│   └── supabase.js
 public/
-├── manifest.json         # PWA manifest (Frog branding)
-├── sw.js                 # Service worker (v4 with notifications)
-├── icon.svg              # App icon
-└── icons/                # PWA icons (various sizes)
+├── manifest.json
+├── sw.js (v4)
+├── icon.svg
+└── icons/
 ```
-
----
-
-## 🔔 Notification System
-
-### Features Implemented
-- **Timer Completion**: Push notification + sound + vibration when focus timer ends
-- **Notification Settings Panel**: Accessible via 🔔 button in header
-- **Permission Request**: Proper browser permission flow
-- **Test Notification**: Button to send test notification
-
-### Notification Types Available
-| Type | Description | Trigger |
-|------|-------------|---------|
-| `FOCUS_END` | Timer complete | When timer reaches 0 |
-| `MORNING_REMINDER` | Daily check-in | Scheduled (7-10am) |
-| `FROG_REMINDER` | Tackle frog task | After delay |
-| `STREAK_REMINDER` | Maintain streak | Evening |
-| `CELEBRATION` | Level up/achievement | On milestone |
-
-### Sound & Vibration
-- **Timer Complete Sound**: 880Hz sine wave (A5 note), 0.5 second
-- **Timer Complete Vibration**: `[200, 100, 200, 100, 200, 100, 400]` pattern
-- **Other Notifications Vibration**: `[100, 50, 100]` pattern
 
 ---
 
 ## 🔄 Last Session Summary
 
-**Date**: December 31, 2025 (continued)
+**Date**: December 31, 2025
 
 **What was done**:
-1. ✅ Implemented Timer Completion Notifications
-   - Added NotificationManager import and integration
-   - Push notification when timer completes
-   - Sound effect using Web Audio API
-   - Vibration pattern for mobile devices
-   - Shows task name and XP earned
-2. ✅ Added Notification Settings Panel
-   - 🔔 button in header opens settings
-   - Toggle each notification type
-   - Set morning reminder time
-   - Test notification button
-   - Permission request flow
-3. ✅ Enhanced Service Worker
-   - Updated to v4 with /stats route caching
-   - Celebratory vibration pattern for timer completion
-   - RequireInteraction for timer notifications
+1. ✅ Complete iOS Liquid Glass UI redesign
+2. ✅ Added 8 majestic backgrounds (aurora, northern lights, sunset, ocean, forest, cosmos, midnight, rose)
+3. ✅ Per-page background customization
+4. ✅ Glass icons, cards, buttons throughout
+5. ✅ Animated star overlay (toggle)
+6. ✅ iOS-style tab bar navigation
+7. ✅ Background selector modal
 
-**Files Created/Updated**:
-- `src/app/page.jsx` - Added notification integration, sound, vibration
-- `public/sw.js` - Enhanced v4 with notification handling
+**Files Created**:
+- `src/components/BackgroundContext.jsx` - Theme management
+- `src/components/BackgroundSelector.jsx` - Background picker UI
+
+**Files Updated**:
+- `src/app/globals.css` - Liquid glass design system (505 lines)
+- `src/app/layout.jsx` - BackgroundProvider wrapper
+- `src/app/page.jsx` - Complete glass UI redesign (952 lines)
+- `src/app/stats/page.jsx` - Glass UI redesign (385 lines)
 
 **Commits this session**:
-- `1a158f9d` - feat: Add Stats Dashboard with XP charts, category breakdown, streak calendar 📊
-- `e2a851a6` - feat: Add navigation to Stats Dashboard
-- `786c4c1b` - docs: Update PROJECT_STATUS.md
-- `d81d56c9` - feat: Add timer completion notifications with sound + vibration 🔔
-- `842b2437` - feat: Enhanced service worker with celebratory vibration for timer completion
-
-**Current state**:
-- App is live at https://frog.newbold.cloud 
-- Timer notifications work with sound and vibration
-- Next priority: Daily check-in reminders
+- `f71595f7` - feat: Add iOS liquid glass design system
+- `f574611d` - feat: Add BackgroundContext
+- `af094f68` - feat: Add BackgroundSelector
+- `cc1687be` - feat: Wrap app with BackgroundProvider
+- `8570f9d5` - feat: Complete iOS liquid glass UI redesign
+- `a069ed97` - feat: Stats page liquid glass redesign
 
 ---
 
 ## 📝 Notes for Claude
 
 When continuing this project:
-1. Always check this file first for current status
-2. Update the to-do list after completing each task
-3. Update "Last Session Summary" at end of each session
-4. Use the stored IDs/keys above for API calls
-5. User prefers cloud-only development (no local CLI commands)
-6. Always push changes and provide PR/commit links
-7. App is now called **"Frog"** (not FocusFlow)
-8. Theme color is now **green** (#22c55e) not purple
-9. Stats Dashboard is at `/stats` route
-10. Notification system uses service worker for push notifications
+1. Check this file first for current status
+2. App uses **liquid glass** design system
+3. Backgrounds stored in localStorage (`frog_backgrounds`)
+4. Use `glass-card`, `glass-button`, `glass-icon` CSS classes
+5. Each page can have different background via BackgroundContext
+6. Theme colors are now frosted glass (not solid green)
+7. Always test on mobile for glass effects
 
 ---
 
-## 📊 Database Schema Quick Reference
+## 🎨 CSS Class Reference
 
-```sql
--- Tasks (table names kept as focusflow_ for backwards compatibility)
-focusflow_tasks: id, user_id, title, category, difficulty, 
-                 energy_required, is_frog, completed, completed_at,
-                 xp_earned, notes, created_at, updated_at
-
--- User Progress  
-focusflow_user_progress: id, user_id, total_xp, level, current_streak,
-                         longest_streak, tasks_completed, frogs_eaten,
-                         total_focus_minutes, last_activity_date
-
--- Sessions
-focusflow_sessions: id, user_id, task_id, duration_minutes,
-                    energy_before, energy_after, completed,
-                    started_at, ended_at, notes
-
--- Energy Log
-focusflow_energy_log: id, user_id, energy_level, logged_at, 
-                      log_date, notes
-```
+| Class | Effect |
+|-------|--------|
+| `glass` | Base glass effect |
+| `glass-light` | Lighter glass |
+| `glass-dark` | Darker glass (headers) |
+| `glass-card` | Card with glass + gradient |
+| `glass-button` | Interactive glass button |
+| `glass-icon` | Icon container (medium) |
+| `glass-icon-sm` | Icon container (small) |
+| `glass-input` | Input field styling |
+| `liquid-shine` | Shine animation on hover |
+| `bg-{name}` | Background themes |
+| `stars` | Animated stars overlay |
+| `animate-float` | Floating animation |
+| `animate-pulse-glow` | Glowing pulse |
 
 ---
 
