@@ -1143,6 +1143,12 @@ export default function Frog() {
               </div>
               <span className="text-xs">Stats</span>
             </Link>
+            <Link href="/achievements" className="flex flex-col items-center text-white/50 hover:text-white/80 transition-colors">
+              <div className="glass-icon-sm w-10 h-10 flex items-center justify-center mb-1 opacity-60">
+                <span className="text-xl">🏆</span>
+              </div>
+              <span className="text-xs">Badges</span>
+            </Link>
             <button 
               onClick={() => setShowBackgroundSelector(true)}
               className="flex flex-col items-center text-white/50 hover:text-white/80 transition-colors"
