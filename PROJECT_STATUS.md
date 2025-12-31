@@ -47,7 +47,6 @@
 - [x] Category filtering and energy-based task filtering
 - [x] PWA support (installable, offline capable)
 - [x] Service worker with caching
-- [x] Push notification infrastructure (service worker ready)
 - [x] Supabase database integration
 - [x] Cloud sync with offline fallback
 - [x] Add task functionality
@@ -56,21 +55,29 @@
 - [x] Sync status indicator
 - [x] **Rebrand to "Frog"** ✅
 - [x] **Domain frog.newbold.cloud connected** ✅
-- [x] **Stats Dashboard** ✅ (completed Dec 31, 2025)
+- [x] **Stats Dashboard** ✅
   - Weekly XP bar chart
   - Focus time tracking chart
   - Category breakdown with progress bars
   - 14-day streak calendar
   - Level progress display
-  - Quick stats cards (Tasks Done, Frogs Eaten, Streak, Focus Time)
-  - Navigation from main app (header button + clickable bottom stats)
+  - Quick stats cards
+- [x] **Timer Completion Notifications** ✅ (completed Dec 31, 2025)
+  - Push notification when timer ends
+  - Sound effect (sine wave tone)
+  - Vibration pattern for mobile
+  - Shows XP earned and task name
+  - Notification settings panel (🔔 button)
+  - Enable/disable per notification type
+  - Test notification button
 
 ---
 
 ## 📋 To-Do List
 
 ### 🔴 Priority 1 - Next Up
-- [ ] **Push Notifications** - Daily check-in reminders, streak alerts, timer completion
+- [ ] **Daily Check-in Reminders** - Morning push notification to set energy
+- [ ] **Streak Protection Alerts** - Evening reminder to maintain streak
 
 ### 🟠 Priority 2 - High Impact
 - [ ] **Authentication (Supabase Auth)** - Email/password or magic link login
@@ -79,7 +86,6 @@
 
 ### 🟡 Priority 3 - Medium Impact
 - [ ] **Google Calendar Integration** - Auto-block time during focus sessions
-- [ ] **Sound Effects** - Completion sounds, timer alerts, level up sounds
 - [ ] **Due Dates & Priorities** - Add deadlines, sort by urgency
 - [ ] **AI Task Assistant** - Claude API to suggest tasks based on energy
 
@@ -91,7 +97,6 @@
 - [ ] **Achievements System** - Unlock badges for milestones
 - [ ] **Dark/Light Theme Toggle** - User preference for theme
 - [ ] **Task Notes & Subtasks** - Add details and checklists to tasks
-- [ ] **Pomodoro Stats** - Track focus sessions over time
 - [ ] **Widget Support** - iOS/Android home screen widgets
 - [ ] **Settings Page** - Customize timer presets, notifications, themes
 
@@ -112,15 +117,39 @@ src/
 ├── components/
 │   ├── InstallPrompt.jsx # PWA install prompt (green theme)
 │   ├── ServiceWorkerRegister.jsx
-│   └── NotificationManager.jsx
+│   └── NotificationManager.jsx  # 🔔 Notification settings
 ├── lib/
 │   └── supabase.js       # Supabase client & helpers
 public/
 ├── manifest.json         # PWA manifest (Frog branding)
-├── sw.js                 # Service worker
+├── sw.js                 # Service worker (v4 with notifications)
 ├── icon.svg              # App icon
 └── icons/                # PWA icons (various sizes)
 ```
+
+---
+
+## 🔔 Notification System
+
+### Features Implemented
+- **Timer Completion**: Push notification + sound + vibration when focus timer ends
+- **Notification Settings Panel**: Accessible via 🔔 button in header
+- **Permission Request**: Proper browser permission flow
+- **Test Notification**: Button to send test notification
+
+### Notification Types Available
+| Type | Description | Trigger |
+|------|-------------|---------|
+| `FOCUS_END` | Timer complete | When timer reaches 0 |
+| `MORNING_REMINDER` | Daily check-in | Scheduled (7-10am) |
+| `FROG_REMINDER` | Tackle frog task | After delay |
+| `STREAK_REMINDER` | Maintain streak | Evening |
+| `CELEBRATION` | Level up/achievement | On milestone |
+
+### Sound & Vibration
+- **Timer Complete Sound**: 880Hz sine wave (A5 note), 0.5 second
+- **Timer Complete Vibration**: `[200, 100, 200, 100, 200, 100, 400]` pattern
+- **Other Notifications Vibration**: `[100, 50, 100]` pattern
 
 ---
 
@@ -129,32 +158,38 @@ public/
 **Date**: December 31, 2025 (continued)
 
 **What was done**:
-1. ✅ Created comprehensive Stats Dashboard at /stats
-   - Weekly XP bar chart showing 7-day progress
-   - Focus time chart tracking minutes per day
-   - Category breakdown with color-coded progress bars
-   - 14-day streak calendar visualization
-   - Level hero section with XP progress to next level
-   - Quick stats cards for key metrics
-2. ✅ Added navigation between main app and stats
-   - Header button (📊) links to stats page
-   - Bottom stats bar is clickable with "Tap for detailed stats" hint
-   - Back button on stats page returns to main app
-3. ✅ Verified deployment successful at frog.newbold.cloud/stats
+1. ✅ Implemented Timer Completion Notifications
+   - Added NotificationManager import and integration
+   - Push notification when timer completes
+   - Sound effect using Web Audio API
+   - Vibration pattern for mobile devices
+   - Shows task name and XP earned
+2. ✅ Added Notification Settings Panel
+   - 🔔 button in header opens settings
+   - Toggle each notification type
+   - Set morning reminder time
+   - Test notification button
+   - Permission request flow
+3. ✅ Enhanced Service Worker
+   - Updated to v4 with /stats route caching
+   - Celebratory vibration pattern for timer completion
+   - RequireInteraction for timer notifications
 
 **Files Created/Updated**:
-- `src/app/stats/page.jsx` - NEW: Full stats dashboard (459 lines)
-- `src/app/page.jsx` - UPDATED: Added Link import, stats navigation
+- `src/app/page.jsx` - Added notification integration, sound, vibration
+- `public/sw.js` - Enhanced v4 with notification handling
 
 **Commits this session**:
 - `1a158f9d` - feat: Add Stats Dashboard with XP charts, category breakdown, streak calendar 📊
-- `e2a851a6` - feat: Add navigation to Stats Dashboard - header button + clickable bottom stats
+- `e2a851a6` - feat: Add navigation to Stats Dashboard
+- `786c4c1b` - docs: Update PROJECT_STATUS.md
+- `d81d56c9` - feat: Add timer completion notifications with sound + vibration 🔔
+- `842b2437` - feat: Enhanced service worker with celebratory vibration for timer completion
 
 **Current state**:
 - App is live at https://frog.newbold.cloud 
-- Stats Dashboard is live at https://frog.newbold.cloud/stats
-- All features deployed and working
-- Next priority: Push Notifications
+- Timer notifications work with sound and vibration
+- Next priority: Daily check-in reminders
 
 ---
 
@@ -170,6 +205,7 @@ When continuing this project:
 7. App is now called **"Frog"** (not FocusFlow)
 8. Theme color is now **green** (#22c55e) not purple
 9. Stats Dashboard is at `/stats` route
+10. Notification system uses service worker for push notifications
 
 ---
 
@@ -195,51 +231,6 @@ focusflow_sessions: id, user_id, task_id, duration_minutes,
 focusflow_energy_log: id, user_id, energy_level, logged_at, 
                       log_date, notes
 ```
-
----
-
-## 📱 Stats Dashboard Features
-
-The stats dashboard includes:
-
-1. **Level & XP Hero Section**
-   - Current level display with frog emoji
-   - Total XP earned
-   - Progress bar to next level
-
-2. **Quick Stats Grid (2x2)**
-   - Tasks Completed (total)
-   - Frogs Eaten (hardest tasks)
-   - Current Streak (with best streak)
-   - Focus Time (minutes + hours)
-
-3. **Weekly Summary**
-   - Total XP this week
-   - Average daily XP
-   - Active days count
-
-4. **Weekly XP Chart**
-   - 7-day bar chart
-   - Today highlighted in green
-   - XP values shown above bars
-
-5. **Focus Time Chart**
-   - 7-day bar chart (purple theme)
-   - Minutes tracked per day
-   - Today highlighted
-
-6. **Category Breakdown**
-   - All 6 categories with colored progress bars
-   - Shows count per category
-   - Emoji indicators
-
-7. **Streak Calendar**
-   - 14-day grid view
-   - Active days highlighted in green
-   - Easy visual of consistency
-
-8. **Motivational Footer**
-   - Dynamic messages based on progress
 
 ---
 
