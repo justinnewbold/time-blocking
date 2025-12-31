@@ -240,16 +240,16 @@ export default function Frog() {
 
   // Update document title with timer status
   useEffect(() => {
-    if (timerRunning && focusTask) {
+    if (timerRunning) {
       const timeStr = `${String(timerMinutes).padStart(2, '0')}:${String(timerSeconds).padStart(2, '0')}`;
-      document.title = `${timeStr} ⏱️ ${focusTask.title} | Frog 🐸`;
-    } else if (screen === 'focus' && focusTask) {
+      document.title = `${timeStr} | Frog 🐸`;
+    } else if (screen === 'focus') {
       const timeStr = `${String(timerMinutes).padStart(2, '0')}:${String(timerSeconds).padStart(2, '0')}`;
       document.title = `⏸️ ${timeStr} | Frog 🐸`;
     } else {
-      document.title = 'Frog 🐸 - Eat Your Frogs First';
+      document.title = 'Frog 🐸';
     }
-  }, [timerRunning, timerMinutes, timerSeconds, focusTask, screen]);
+  }, [timerRunning, timerMinutes, timerSeconds, screen]);
 
   const handleEnergySelect = async (value) => {
     setEnergy(value);
