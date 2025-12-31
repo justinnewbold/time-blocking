@@ -1,17 +1,16 @@
-const CACHE_NAME = 'focusflow-v1';
+const CACHE_NAME = 'focusflow-v2';
 const urlsToCache = [
   '/',
+  '/offline',
   '/manifest.json',
+  '/icons/icon.svg'
 ];
 
-// Install event - cache resources
+// Install event - cache essential files
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
+      .then((cache) => cache.addAll(urlsToCache))
       .then(() => self.skipWaiting())
   );
 });
@@ -21,12 +20,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
+        cacheNames
+          .filter((cacheName) => cacheName !== CACHE_NAME)
+          .map((cacheName) => caches.delete(cacheName))
       );
     }).then(() => self.clients.claim())
   );
@@ -34,71 +30,130 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-
-        // Clone the request
-        const fetchRequest = event.request.clone();
-
-        return fetch(fetchRequest).then((response) => {
-          // Check if valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
+        if (response) return response;
+        
+        return fetch(event.request)
+          .then((response) => {
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
+            }
+            
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME)
+              .then((cache) => cache.put(event.request, responseToCache));
+            
             return response;
-          }
-
-          // Clone the response
-          const responseToCache = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              // Only cache same-origin requests
-              if (event.request.url.startsWith(self.location.origin)) {
-                cache.put(event.request, responseToCache);
-              }
-            });
-
-          return response;
-        }).catch(() => {
-          // Return offline page for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
-        });
+          })
+          .catch(() => {
+            if (event.request.destination === 'document') {
+              return caches.match('/offline');
+            }
+          });
       })
   );
 });
 
-// Handle push notifications (for future use)
+// Push notification event
 self.addEventListener('push', (event) => {
-  const options = {
-    body: event.data ? event.data.text() : 'Time to focus! 🐸',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-72x72.png',
-    vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1
-    },
-    actions: [
-      { action: 'explore', title: 'Open FocusFlow' },
-      { action: 'close', title: 'Dismiss' }
-    ]
+  console.log('[SW] Push received:', event);
+  
+  let data = {
+    title: 'FocusFlow',
+    body: 'Time to focus!',
+    icon: '/icons/icon.svg',
+    badge: '/icons/icon.svg',
+    tag: 'focusflow-notification',
+    data: { url: '/' }
   };
-
+  
+  if (event.data) {
+    try {
+      const payload = event.data.json();
+      data = { ...data, ...payload };
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+  
+  const options = {
+    body: data.body,
+    icon: data.icon || '/icons/icon.svg',
+    badge: data.badge || '/icons/icon.svg',
+    tag: data.tag || 'focusflow-notification',
+    vibrate: [100, 50, 100],
+    data: data.data || { url: '/' },
+    actions: data.actions || [
+      { action: 'open', title: 'Open FocusFlow' },
+      { action: 'dismiss', title: 'Dismiss' }
+    ],
+    requireInteraction: data.requireInteraction || false
+  };
+  
   event.waitUntil(
-    self.registration.showNotification('FocusFlow', options)
+    self.registration.showNotification(data.title, options)
   );
 });
 
-// Handle notification clicks
+// Notification click event
 self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notification clicked:', event.action);
+  
   event.notification.close();
+  
+  if (event.action === 'dismiss') return;
+  
+  const urlToOpen = event.notification.data?.url || '/';
+  
   event.waitUntil(
-    clients.openWindow('/')
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windowClients) => {
+        for (const client of windowClients) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            client.postMessage({
+              type: 'NOTIFICATION_CLICKED',
+              action: event.action,
+              data: event.notification.data
+            });
+            return client.focus();
+          }
+        }
+        if (clients.openWindow) {
+          return clients.openWindow(urlToOpen);
+        }
+      })
   );
+});
+
+// Background sync for offline actions
+self.addEventListener('sync', (event) => {
+  console.log('[SW] Background sync:', event.tag);
+  
+  if (event.tag === 'sync-tasks') {
+    event.waitUntil(syncTasks());
+  }
+});
+
+async function syncTasks() {
+  console.log('[SW] Syncing tasks...');
+}
+
+// Message handler for communication with main app
+self.addEventListener('message', (event) => {
+  console.log('[SW] Message received:', event.data);
+  
+  if (event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  
+  if (event.data.type === 'SCHEDULE_NOTIFICATION') {
+    const { delay, notification } = event.data;
+    setTimeout(() => {
+      self.registration.showNotification(notification.title, notification);
+    }, delay);
+  }
 });
