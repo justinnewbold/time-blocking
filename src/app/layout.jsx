@@ -1,6 +1,7 @@
 import './globals.css'
 import InstallPrompt from '@/components/InstallPrompt'
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
+import { BackgroundProvider } from '@/components/BackgroundContext'
 
 export const metadata = {
   title: 'Frog 🐸 - Eat Your Frogs First',
@@ -24,7 +25,7 @@ export const viewport = {
   viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#22c55e' },
-    { media: '(prefers-color-scheme: dark)', color: '#0f172a' }
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' }
   ]
 }
 
@@ -44,11 +45,17 @@ export default function RootLayout({ children }) {
         <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon.svg" />
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon.svg" />
         <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon.svg" />
+        
+        {/* Preload fonts for iOS feel */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body className="bg-slate-900 text-white antialiased overscroll-none">
-        <ServiceWorkerRegister />
-        {children}
-        <InstallPrompt />
+      <body className="text-white antialiased overscroll-none selection:bg-green-500/30">
+        <BackgroundProvider>
+          <ServiceWorkerRegister />
+          {children}
+          <InstallPrompt />
+        </BackgroundProvider>
       </body>
     </html>
   )
