@@ -7,6 +7,7 @@
 | Item | Value |
 |------|-------|
 | **Live App** | https://frog.newbold.cloud |
+| **Stats Dashboard** | https://frog.newbold.cloud/stats |
 | **Vercel Dashboard** | https://vercel.com/newbold-cloud/time-blocking |
 | **GitHub Repo** | https://github.com/justinnewbold/time-blocking |
 | **Supabase Project** | `wektbfkzbxvtxsremnnk` (Vercel project) |
@@ -53,15 +54,22 @@
 - [x] Timer presets (5, 15, 25, 45 min)
 - [x] Celebration animations on task completion
 - [x] Sync status indicator
-- [x] **Rebrand to "Frog"** ✅ (completed Dec 31, 2025)
+- [x] **Rebrand to "Frog"** ✅
 - [x] **Domain frog.newbold.cloud connected** ✅
+- [x] **Stats Dashboard** ✅ (completed Dec 31, 2025)
+  - Weekly XP bar chart
+  - Focus time tracking chart
+  - Category breakdown with progress bars
+  - 14-day streak calendar
+  - Level progress display
+  - Quick stats cards (Tasks Done, Frogs Eaten, Streak, Focus Time)
+  - Navigation from main app (header button + clickable bottom stats)
 
 ---
 
 ## 📋 To-Do List
 
 ### 🔴 Priority 1 - Next Up
-- [ ] **Stats Dashboard** - Weekly XP chart, focus time, category breakdown, streak calendar
 - [ ] **Push Notifications** - Daily check-in reminders, streak alerts, timer completion
 
 ### 🟠 Priority 2 - High Impact
@@ -85,6 +93,7 @@
 - [ ] **Task Notes & Subtasks** - Add details and checklists to tasks
 - [ ] **Pomodoro Stats** - Track focus sessions over time
 - [ ] **Widget Support** - iOS/Android home screen widgets
+- [ ] **Settings Page** - Customize timer presets, notifications, themes
 
 ---
 
@@ -96,6 +105,8 @@ src/
 │   ├── page.jsx          # Main app component (Frog)
 │   ├── layout.jsx        # Root layout with PWA meta tags
 │   ├── globals.css       # Tailwind styles
+│   ├── stats/
+│   │   └── page.jsx      # Stats Dashboard 📊
 │   └── offline/
 │       └── page.jsx      # Offline fallback page
 ├── components/
@@ -115,32 +126,35 @@ public/
 
 ## 🔄 Last Session Summary
 
-**Date**: December 31, 2025
+**Date**: December 31, 2025 (continued)
 
 **What was done**:
-1. ✅ Rebranded entire app from "FocusFlow" to "Frog"
-2. ✅ Updated manifest.json with Frog name and green theme color
-3. ✅ Updated layout.jsx with new title and metadata
-4. ✅ Updated page.jsx component name and UI text
-5. ✅ Updated InstallPrompt with green theme and Frog branding
-6. ✅ Verified frog.newbold.cloud domain is connected and working
+1. ✅ Created comprehensive Stats Dashboard at /stats
+   - Weekly XP bar chart showing 7-day progress
+   - Focus time chart tracking minutes per day
+   - Category breakdown with color-coded progress bars
+   - 14-day streak calendar visualization
+   - Level hero section with XP progress to next level
+   - Quick stats cards for key metrics
+2. ✅ Added navigation between main app and stats
+   - Header button (📊) links to stats page
+   - Bottom stats bar is clickable with "Tap for detailed stats" hint
+   - Back button on stats page returns to main app
+3. ✅ Verified deployment successful at frog.newbold.cloud/stats
 
-**Files Updated**:
-- `public/manifest.json` - Name, theme color (green)
-- `src/app/layout.jsx` - Title, metadata, theme
-- `src/app/page.jsx` - Component name, loading text, header
-- `src/components/InstallPrompt.jsx` - Branding, green theme
-
-**Current state**:
-- App is live at https://frog.newbold.cloud with full Frog branding
-- All 4 rebrand commits deployed and READY
-- Next task: Stats Dashboard implementation
+**Files Created/Updated**:
+- `src/app/stats/page.jsx` - NEW: Full stats dashboard (459 lines)
+- `src/app/page.jsx` - UPDATED: Added Link import, stats navigation
 
 **Commits this session**:
-- `fe58e1db` - rebrand: Update manifest.json - FocusFlow → Frog 🐸
-- `5f88558a` - rebrand: Update layout.jsx - FocusFlow → Frog 🐸
-- `333d5bde` - rebrand: Update page.jsx - FocusFlow → Frog 🐸
-- `dc9d32c5` - rebrand: Update InstallPrompt - FocusFlow → Frog 🐸 with green theme
+- `1a158f9d` - feat: Add Stats Dashboard with XP charts, category breakdown, streak calendar 📊
+- `e2a851a6` - feat: Add navigation to Stats Dashboard - header button + clickable bottom stats
+
+**Current state**:
+- App is live at https://frog.newbold.cloud 
+- Stats Dashboard is live at https://frog.newbold.cloud/stats
+- All features deployed and working
+- Next priority: Push Notifications
 
 ---
 
@@ -155,6 +169,7 @@ When continuing this project:
 6. Always push changes and provide PR/commit links
 7. App is now called **"Frog"** (not FocusFlow)
 8. Theme color is now **green** (#22c55e) not purple
+9. Stats Dashboard is at `/stats` route
 
 ---
 
@@ -180,6 +195,51 @@ focusflow_sessions: id, user_id, task_id, duration_minutes,
 focusflow_energy_log: id, user_id, energy_level, logged_at, 
                       log_date, notes
 ```
+
+---
+
+## 📱 Stats Dashboard Features
+
+The stats dashboard includes:
+
+1. **Level & XP Hero Section**
+   - Current level display with frog emoji
+   - Total XP earned
+   - Progress bar to next level
+
+2. **Quick Stats Grid (2x2)**
+   - Tasks Completed (total)
+   - Frogs Eaten (hardest tasks)
+   - Current Streak (with best streak)
+   - Focus Time (minutes + hours)
+
+3. **Weekly Summary**
+   - Total XP this week
+   - Average daily XP
+   - Active days count
+
+4. **Weekly XP Chart**
+   - 7-day bar chart
+   - Today highlighted in green
+   - XP values shown above bars
+
+5. **Focus Time Chart**
+   - 7-day bar chart (purple theme)
+   - Minutes tracked per day
+   - Today highlighted
+
+6. **Category Breakdown**
+   - All 6 categories with colored progress bars
+   - Shows count per category
+   - Emoji indicators
+
+7. **Streak Calendar**
+   - 14-day grid view
+   - Active days highlighted in green
+   - Easy visual of consistency
+
+8. **Motivational Footer**
+   - Dynamic messages based on progress
 
 ---
 
