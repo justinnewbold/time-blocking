@@ -95,6 +95,9 @@ function GlassCard({ children, className = '', onClick, hover = false }) {
 export default function Frog() {
   const [screen, setScreen] = useState('checkin');
   const [energy, setEnergy] = useState(null);
+  const [moodLog, setMoodLog] = useState([]); // [{timestamp, energy, note}]
+  const [showMoodPicker, setShowMoodPicker] = useState(false);
+  const [moodNote, setMoodNote] = useState('');
   const [tasks, setTasks] = useState([]);
   const [completedTasks, setCompletedTasks] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -194,6 +197,12 @@ export default function Frog() {
         const savedEstimates = Storage.get('timeEstimates', {});
         setTimeEstimates(savedEstimates);
         
+        // Load mood log (filter to today only)
+        const savedMoodLog = Storage.get('moodLog', []);
+        const today = new Date().toDateString();
+        const todayMoods = savedMoodLog.filter(m => new Date(m.timestamp).toDateString() === today);
+        setMoodLog(todayMoods);
+        
         // Check for rollover tasks (from previous days)
         checkRolloverTasks();
         
@@ -217,6 +226,62 @@ export default function Frog() {
       Storage.set('timeEstimates', timeEstimates);
     }
   }, [timeEstimates]);
+
+  // Save mood log and update historical data
+  useEffect(() => {
+    if (moodLog.length > 0) {
+      // Get all historical moods and merge with today
+      const allMoods = Storage.get('moodLog', []);
+      const today = new Date().toDateString();
+      const otherDays = allMoods.filter(m => new Date(m.timestamp).toDateString() !== today);
+      Storage.set('moodLog', [...otherDays, ...moodLog]);
+    }
+  }, [moodLog]);
+
+  // Quick mood change function
+  const changeMood = (newEnergy, note = '') => {
+    const moodEntry = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      energy: newEnergy,
+      previousEnergy: energy,
+      note: note.trim(),
+      timeOfDay: new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'
+    };
+    
+    setMoodLog(prev => [...prev, moodEntry]);
+    setEnergy(newEnergy);
+    Storage.set('todayEnergy', newEnergy);
+    setShowMoodPicker(false);
+    setMoodNote('');
+    
+    // Play a gentle confirmation sound
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      osc.frequency.value = 440 + (newEnergy * 100); // Higher pitch for higher energy
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      osc.start(audioContext.currentTime);
+      osc.stop(audioContext.currentTime + 0.2);
+      if (navigator.vibrate) navigator.vibrate(30);
+    } catch (e) {}
+  };
+
+  // Get mood trend (improving, declining, stable)
+  const getMoodTrend = () => {
+    if (moodLog.length < 2) return 'stable';
+    const recent = moodLog.slice(-3);
+    const avgRecent = recent.reduce((sum, m) => sum + m.energy, 0) / recent.length;
+    const first = moodLog[0].energy;
+    if (avgRecent > first + 0.5) return 'improving';
+    if (avgRecent < first - 0.5) return 'declining';
+    return 'stable';
+  };
 
   // Rollover tasks function - move incomplete tasks from previous days
   const checkRolloverTasks = () => {
@@ -886,9 +951,26 @@ export default function Frog() {
                       'bg-red-400'
                     }`} />
                   </div>
-                  <p className="text-white/50 text-xs">
-                    {ENERGY_LEVELS.find(e => e.value === energy)?.emoji} {ENERGY_LEVELS.find(e => e.value === energy)?.label}
-                  </p>
+                  {/* Tappable mood indicator */}
+                  <button 
+                    onClick={() => setShowMoodPicker(true)}
+                    className="flex items-center gap-1.5 text-white/50 text-xs hover:text-white/80 transition-colors"
+                  >
+                    <span>{ENERGY_LEVELS.find(e => e.value === energy)?.emoji}</span>
+                    <span>{ENERGY_LEVELS.find(e => e.value === energy)?.label}</span>
+                    <span className={`text-[10px] ${
+                      getMoodTrend() === 'improving' ? 'text-green-400' :
+                      getMoodTrend() === 'declining' ? 'text-orange-400' :
+                      'text-white/30'
+                    }`}>
+                      {getMoodTrend() === 'improving' ? '↗' : getMoodTrend() === 'declining' ? '↘' : '→'}
+                    </span>
+                    {moodLog.length > 0 && (
+                      <span className="bg-white/20 text-white/60 text-[10px] px-1.5 rounded-full">
+                        {moodLog.length}
+                      </span>
+                    )}
+                  </button>
                 </div>
               </div>
               
@@ -1143,12 +1225,6 @@ export default function Frog() {
               </div>
               <span className="text-xs">Stats</span>
             </Link>
-            <Link href="/achievements" className="flex flex-col items-center text-white/50 hover:text-white/80 transition-colors">
-              <div className="glass-icon-sm w-10 h-10 flex items-center justify-center mb-1 opacity-60">
-                <span className="text-xl">🏆</span>
-              </div>
-              <span className="text-xs">Badges</span>
-            </Link>
             <button 
               onClick={() => setShowBackgroundSelector(true)}
               className="flex flex-col items-center text-white/50 hover:text-white/80 transition-colors"
@@ -1160,6 +1236,93 @@ export default function Frog() {
             </button>
           </div>
         </div>
+
+        {/* Quick Mood Change Modal */}
+        {showMoodPicker && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMoodPicker(false)} />
+            <div className="relative w-full max-w-md mx-4 mb-4 sm:mb-0 animate-slide-up">
+              <div className="glass-card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-white">How are you feeling?</h2>
+                  <button 
+                    onClick={() => setShowMoodPicker(false)} 
+                    className="glass-icon-sm w-10 h-10 flex items-center justify-center text-white/60"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <p className="text-white/50 text-sm mb-4">
+                  Energy changes throughout the day — that&apos;s normal! Update your current level.
+                </p>
+                
+                {/* Energy Level Selection */}
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  {ENERGY_LEVELS.map((lvl) => (
+                    <button
+                      key={lvl.value}
+                      onClick={() => changeMood(lvl.value, moodNote)}
+                      className={`glass-card p-4 text-center transition-all ${
+                        energy === lvl.value 
+                          ? 'ring-2 ring-green-400 bg-green-500/20' 
+                          : 'hover:bg-white/10'
+                      }`}
+                    >
+                      <span className="text-3xl block mb-1">{lvl.emoji}</span>
+                      <span className="text-white/80 text-xs">{lvl.label}</span>
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Optional Note */}
+                <div className="mb-4">
+                  <label className="text-white/60 text-sm mb-2 block">Quick note (optional)</label>
+                  <input
+                    type="text"
+                    value={moodNote}
+                    onChange={(e) => setMoodNote(e.target.value)}
+                    placeholder="What changed? (coffee, meeting, tired...)"
+                    className="w-full glass-input px-4 py-3 rounded-xl text-white text-sm placeholder-white/30"
+                  />
+                </div>
+                
+                {/* Today's Mood History */}
+                {moodLog.length > 0 && (
+                  <div className="border-t border-white/10 pt-4">
+                    <p className="text-white/60 text-sm mb-3">Today&apos;s mood changes:</p>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {moodLog.slice().reverse().map((entry) => {
+                        const time = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const lvl = ENERGY_LEVELS.find(e => e.value === entry.energy);
+                        return (
+                          <div key={entry.id} className="flex items-center gap-3 bg-white/5 rounded-lg p-2">
+                            <span className="text-lg">{lvl?.emoji}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white/80 text-sm">{lvl?.label}</p>
+                              {entry.note && (
+                                <p className="text-white/40 text-xs truncate">{entry.note}</p>
+                              )}
+                            </div>
+                            <span className="text-white/30 text-xs">{time}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Mood Tips */}
+                <div className="mt-4 bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                  <p className="text-blue-300 text-xs">
+                    💡 <strong>Tip:</strong> Low energy? Try a 5-min task or take a short break. 
+                    Your tasks will filter to match your current energy level.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Add Task Modal */}
         {showAddTask && (
