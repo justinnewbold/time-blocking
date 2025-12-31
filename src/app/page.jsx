@@ -49,7 +49,7 @@ const Storage = {
   }
 };
 
-export default function FocusFlow() {
+export default function Frog() {
   const [screen, setScreen] = useState('checkin');
   const [energy, setEnergy] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -381,7 +381,7 @@ export default function FocusFlow() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin text-4xl mb-4">⚡</div>
-          <div className="text-white text-xl">Loading FocusFlow...</div>
+          <div className="text-white text-xl">Loading Frog 🐸...</div>
           <div className="text-purple-300 text-sm mt-2">Syncing with cloud...</div>
         </div>
       </div>
@@ -671,7 +671,7 @@ export default function FocusFlow() {
         <div className="flex justify-between items-center">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-white">FocusFlow</h1>
+              <h1 className="text-xl font-bold text-white">🐸 Frog</h1>
               <span className={`text-xs px-2 py-0.5 rounded-full ${
                 syncStatus === 'synced' ? 'bg-green-500/20 text-green-400' :
                 syncStatus === 'syncing' ? 'bg-yellow-500/20 text-yellow-400' :
