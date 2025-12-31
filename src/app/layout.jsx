@@ -2,9 +2,10 @@ import './globals.css'
 import InstallPrompt from '@/components/InstallPrompt'
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 import { BackgroundProvider } from '@/components/BackgroundContext'
+import { AchievementsProvider } from '@/components/AchievementsContext'
 
 export const metadata = {
-  title: 'Frog 🐸 - Eat Your Frogs First',
+  title: 'Frog 🐸',
   description: 'Compassionate productivity app that works with your brain, not against it. Tackle your hardest tasks first with energy-based filtering and gamification.',
   manifest: '/manifest.json',
   appleWebApp: {
@@ -46,15 +47,16 @@ export default function RootLayout({ children }) {
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon.svg" />
         <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon.svg" />
         
-        {/* Preload fonts for iOS feel */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body className="text-white antialiased overscroll-none selection:bg-green-500/30">
         <BackgroundProvider>
-          <ServiceWorkerRegister />
-          {children}
-          <InstallPrompt />
+          <AchievementsProvider>
+            <ServiceWorkerRegister />
+            {children}
+            <InstallPrompt />
+          </AchievementsProvider>
         </BackgroundProvider>
       </body>
     </html>
