@@ -129,6 +129,15 @@ export default function Frog() {
     autoFilterByEnergy: true,
     compactMode: false
   });
+  // Thought Dump - quick capture during focus
+  const [thoughtDump, setThoughtDump] = useState([]);
+  const [showThoughtInput, setShowThoughtInput] = useState(false);
+  const [quickThought, setQuickThought] = useState('');
+  // Daily Top 3
+  const [dailyTop3, setDailyTop3] = useState([]);
+  const [showTop3Picker, setShowTop3Picker] = useState(false);
+  // Quick Wins Filter
+  const [showQuickWinsOnly, setShowQuickWinsOnly] = useState(false);
   const [expandedTask, setExpandedTask] = useState(null);
   const [subtasks, setSubtasks] = useState({});  // { taskId: [{id, title, completed}] }
   const [newSubtask, setNewSubtask] = useState('');
@@ -218,6 +227,20 @@ export default function Frog() {
           setSettings(prev => ({ ...prev, ...savedSettings }));
         }
         
+        // Load thought dump (today only)
+        const savedThoughts = Storage.get('thoughtDump', []);
+        const todayThoughts = savedThoughts.filter(t => new Date(t.timestamp).toDateString() === today);
+        setThoughtDump(todayThoughts);
+        
+        // Load daily top 3 (reset if new day)
+        const savedTop3 = Storage.get('dailyTop3', { date: null, tasks: [] });
+        if (savedTop3.date === today) {
+          setDailyTop3(savedTop3.tasks);
+        } else {
+          // New day - prompt to pick top 3
+          setShowTop3Picker(true);
+        }
+        
         // Check for rollover tasks (from previous days)
         checkRolloverTasks();
         
@@ -257,6 +280,94 @@ export default function Frog() {
   useEffect(() => {
     Storage.set('settings', settings);
   }, [settings]);
+
+  // Save thought dump
+  useEffect(() => {
+    if (thoughtDump.length > 0) {
+      const allThoughts = Storage.get('thoughtDump', []);
+      const today = new Date().toDateString();
+      const otherDays = allThoughts.filter(t => new Date(t.timestamp).toDateString() !== today);
+      Storage.set('thoughtDump', [...otherDays, ...thoughtDump]);
+    }
+  }, [thoughtDump]);
+
+  // Save daily top 3
+  useEffect(() => {
+    if (dailyTop3.length > 0) {
+      Storage.set('dailyTop3', { date: new Date().toDateString(), tasks: dailyTop3 });
+    }
+  }, [dailyTop3]);
+
+  // Add a quick thought (during focus mode)
+  const addQuickThought = (text) => {
+    if (!text.trim()) return;
+    const thought = {
+      id: Date.now(),
+      text: text.trim(),
+      timestamp: new Date().toISOString(),
+      convertedToTask: false
+    };
+    setThoughtDump(prev => [...prev, thought]);
+    setQuickThought('');
+    setShowThoughtInput(false);
+    
+    // Quick feedback
+    if (settings.soundEffects) {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.frequency.value = 600;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.08, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+        osc.start(audioContext.currentTime);
+        osc.stop(audioContext.currentTime + 0.15);
+      } catch (e) {}
+    }
+    if (settings.vibration && navigator.vibrate) navigator.vibrate(30);
+  };
+
+  // Convert thought to task
+  const convertThoughtToTask = (thought) => {
+    const newTaskFromThought = {
+      id: Date.now(),
+      title: thought.text,
+      category: 'personal',
+      difficulty: 2,
+      estimatedMinutes: 15,
+      completed: false,
+      created_at: new Date().toISOString()
+    };
+    setTasks(prev => [...prev, newTaskFromThought]);
+    setThoughtDump(prev => prev.map(t => 
+      t.id === thought.id ? { ...t, convertedToTask: true } : t
+    ));
+  };
+
+  // Delete thought
+  const deleteThought = (thoughtId) => {
+    setThoughtDump(prev => prev.filter(t => t.id !== thoughtId));
+  };
+
+  // Toggle task in daily top 3
+  const toggleTop3 = (taskId) => {
+    if (dailyTop3.includes(taskId)) {
+      setDailyTop3(prev => prev.filter(id => id !== taskId));
+    } else if (dailyTop3.length < 3) {
+      setDailyTop3(prev => [...prev, taskId]);
+    }
+  };
+
+  // Check if all top 3 are done
+  const getTop3Progress = () => {
+    const completed = dailyTop3.filter(id => 
+      completedTasks.some(t => t.id === id) || tasks.find(t => t.id === id)?.completed
+    ).length;
+    return { completed, total: dailyTop3.length };
+  };
 
   // Toggle a setting
   const toggleSetting = (key) => {
@@ -736,12 +847,27 @@ export default function Frog() {
     return { completed, total: taskSubtasks.length, percent: Math.round((completed / taskSubtasks.length) * 100) };
   };
 
-  const filteredTasks = selectedCategory === 'all' 
+  // Apply category filter
+  let filteredTasks = selectedCategory === 'all' 
     ? tasks 
     : tasks.filter(t => t.category === selectedCategory);
+  
+  // Apply Quick Wins filter (5-15 minute tasks only)
+  if (showQuickWinsOnly) {
+    filteredTasks = filteredTasks.filter(t => {
+      const est = t.estimatedMinutes || 25;
+      return est >= 5 && est <= 15;
+    });
+  }
 
   // Sort tasks - frog first, then by difficulty
   const sortedTasks = [...filteredTasks].sort((a, b) => {
+    // Top 3 tasks come first
+    const aInTop3 = dailyTop3.includes(a.id);
+    const bInTop3 = dailyTop3.includes(b.id);
+    if (aInTop3 && !bInTop3) return -1;
+    if (!aInTop3 && bInTop3) return 1;
+    // Then frog
     if (a.frog && !b.frog) return -1;
     if (!a.frog && b.frog) return 1;
     return b.difficulty - a.difficulty;
@@ -972,6 +1098,54 @@ export default function Frog() {
             </div>
           </div>
           
+          {/* Quick Thought Capture - Always visible in focus mode */}
+          <div className="w-full max-w-sm mb-6">
+            {showThoughtInput ? (
+              <div className="glass-card p-4 animate-slide-up">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">💭</span>
+                  <p className="text-white/60 text-sm">Quick thought capture</p>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={quickThought}
+                    onChange={(e) => setQuickThought(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addQuickThought(quickThought)}
+                    placeholder="Type it before you forget..."
+                    className="flex-1 glass-input px-4 py-3 rounded-xl text-white text-sm placeholder-white/30"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => addQuickThought(quickThought)}
+                    className="glass-button px-4 py-3 rounded-xl text-green-400"
+                  >
+                    Save
+                  </button>
+                </div>
+                <button
+                  onClick={() => { setShowThoughtInput(false); setQuickThought(''); }}
+                  className="w-full mt-2 text-white/40 text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowThoughtInput(true)}
+                className="w-full glass-card p-4 flex items-center justify-center gap-2 text-white/60 hover:text-white/80 transition-colors"
+              >
+                <span className="text-xl">💭</span>
+                <span className="text-sm">Capture a thought</span>
+                {thoughtDump.length > 0 && (
+                  <span className="bg-white/20 text-white/60 text-xs px-2 py-0.5 rounded-full ml-2">
+                    {thoughtDump.length}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+          
           {/* Cancel Button */}
           <button
             onClick={cancelFocus}
@@ -1053,6 +1227,16 @@ export default function Frog() {
               >
                 All Tasks
               </button>
+              {/* Quick Wins Filter */}
+              <button
+                onClick={() => setShowQuickWinsOnly(!showQuickWinsOnly)}
+                className={`glass-button px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 ${
+                  showQuickWinsOnly ? 'bg-yellow-500/30 text-yellow-300 ring-2 ring-yellow-500/50' : 'text-white/60'
+                }`}
+              >
+                <span>⚡</span>
+                Quick Wins
+              </button>
               {Object.entries(CATEGORIES).map(([key, cat]) => (
                 <button
                   key={key}
@@ -1068,6 +1252,98 @@ export default function Frog() {
             </div>
           </div>
         </div>
+
+        {/* Daily Top 3 Section */}
+        {dailyTop3.length > 0 && (
+          <div className="px-4 mt-4">
+            <div className="glass-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🎯</span>
+                  <h3 className="text-white font-semibold">Today&apos;s Top 3</h3>
+                </div>
+                <div className="text-xs">
+                  <span className="text-green-400 font-bold">{getTop3Progress().completed}</span>
+                  <span className="text-white/40">/{getTop3Progress().total} done</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {dailyTop3.map((taskId, idx) => {
+                  const task = [...tasks, ...completedTasks].find(t => t.id === taskId);
+                  if (!task) return null;
+                  const isCompleted = task.completed || completedTasks.some(t => t.id === taskId);
+                  return (
+                    <div 
+                      key={taskId}
+                      className={`flex items-center gap-3 p-2 rounded-lg ${
+                        isCompleted ? 'bg-green-500/20' : 'bg-white/5'
+                      }`}
+                    >
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        isCompleted ? 'bg-green-500 text-white' : 'bg-white/20 text-white/60'
+                      }`}>
+                        {isCompleted ? '✓' : idx + 1}
+                      </span>
+                      <span className={`flex-1 text-sm ${isCompleted ? 'text-white/50 line-through' : 'text-white'}`}>
+                        {task.title}
+                      </span>
+                      {!isCompleted && (
+                        <button
+                          onClick={() => startFocus(task, task.estimatedMinutes || 25)}
+                          className="text-green-400 text-xs px-2 py-1 bg-green-500/20 rounded-lg"
+                        >
+                          Start
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setShowTop3Picker(true)}
+                className="w-full mt-3 text-white/40 text-xs hover:text-white/60 transition-colors"
+              >
+                Edit Top 3
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Thought Dump Quick View */}
+        {thoughtDump.length > 0 && !showTop3Picker && (
+          <div className="px-4 mt-4">
+            <div className="glass-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">💭</span>
+                  <h3 className="text-white font-semibold">Captured Thoughts</h3>
+                </div>
+                <span className="bg-white/20 text-white/60 text-xs px-2 py-1 rounded-full">
+                  {thoughtDump.filter(t => !t.convertedToTask).length} new
+                </span>
+              </div>
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {thoughtDump.filter(t => !t.convertedToTask).slice(-3).reverse().map(thought => (
+                  <div key={thought.id} className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
+                    <p className="flex-1 text-white/80 text-sm truncate">{thought.text}</p>
+                    <button
+                      onClick={() => convertThoughtToTask(thought)}
+                      className="text-green-400 text-xs px-2 py-1 bg-green-500/20 rounded-lg whitespace-nowrap"
+                    >
+                      + Task
+                    </button>
+                    <button
+                      onClick={() => deleteThought(thought.id)}
+                      className="text-white/40 text-xs px-2 py-1 hover:text-red-400"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Daily Frog Banner */}
         {dailyFrog && !frogCompleted && (
@@ -1291,6 +1567,118 @@ export default function Frog() {
             </button>
           </div>
         </div>
+
+        {/* Daily Top 3 Picker Modal */}
+        {showTop3Picker && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => dailyTop3.length > 0 && setShowTop3Picker(false)} />
+            <div className="relative w-full max-w-md mx-4 mb-4 sm:mb-0 animate-slide-up max-h-[80vh] overflow-hidden">
+              <div className="glass-card p-6 overflow-y-auto max-h-[80vh]">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <span>🎯</span> Pick Your Top 3
+                    </h2>
+                    <p className="text-white/50 text-sm mt-1">What MUST get done today?</p>
+                  </div>
+                  {dailyTop3.length > 0 && (
+                    <button 
+                      onClick={() => setShowTop3Picker(false)} 
+                      className="glass-icon-sm w-10 h-10 flex items-center justify-center text-white/60"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                
+                {/* Selection counter */}
+                <div className="flex items-center gap-3 mb-4 p-3 bg-white/5 rounded-xl">
+                  <div className="flex gap-1">
+                    {[0, 1, 2].map(i => (
+                      <div 
+                        key={i}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                          i < dailyTop3.length 
+                            ? 'bg-green-500 text-white scale-110' 
+                            : 'bg-white/10 text-white/30'
+                        }`}
+                      >
+                        {i < dailyTop3.length ? '✓' : i + 1}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-white/60 text-sm">
+                    {dailyTop3.length === 0 && "Select your 3 most important tasks"}
+                    {dailyTop3.length === 1 && "Great start! Pick 2 more"}
+                    {dailyTop3.length === 2 && "Almost there! Pick 1 more"}
+                    {dailyTop3.length === 3 && "Perfect! You're focused"}
+                  </p>
+                </div>
+                
+                {/* Task list to select from */}
+                <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
+                  {tasks.filter(t => !t.completed).map(task => {
+                    const isSelected = dailyTop3.includes(task.id);
+                    const selectionIndex = dailyTop3.indexOf(task.id);
+                    return (
+                      <button
+                        key={task.id}
+                        onClick={() => toggleTop3(task.id)}
+                        disabled={!isSelected && dailyTop3.length >= 3}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all ${
+                          isSelected 
+                            ? 'bg-green-500/20 ring-2 ring-green-500/50' 
+                            : dailyTop3.length >= 3
+                              ? 'bg-white/5 opacity-40 cursor-not-allowed'
+                              : 'bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                          isSelected ? 'bg-green-500 text-white' : 'bg-white/10 text-white/40'
+                        }`}>
+                          {isSelected ? selectionIndex + 1 : '○'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium truncate ${isSelected ? 'text-white' : 'text-white/80'}`}>
+                            {task.title}
+                          </p>
+                          <p className="text-white/40 text-xs flex items-center gap-2">
+                            <span>{CATEGORIES[task.category]?.emoji}</span>
+                            <span>{task.estimatedMinutes || 25}m</span>
+                            {task.frog && <span>🐸</span>}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                {/* Confirm button */}
+                <button
+                  onClick={() => setShowTop3Picker(false)}
+                  disabled={dailyTop3.length === 0}
+                  className={`w-full py-4 rounded-xl font-semibold transition-all ${
+                    dailyTop3.length > 0
+                      ? 'bg-green-500 text-white hover:bg-green-600'
+                      : 'bg-white/10 text-white/30 cursor-not-allowed'
+                  }`}
+                >
+                  {dailyTop3.length === 0 ? 'Pick at least 1 task' : `Lock In ${dailyTop3.length} Task${dailyTop3.length > 1 ? 's' : ''}`}
+                </button>
+                
+                {/* Skip option */}
+                {dailyTop3.length === 0 && (
+                  <button
+                    onClick={() => { setShowTop3Picker(false); setDailyTop3([]); }}
+                    className="w-full mt-3 text-white/40 text-sm hover:text-white/60"
+                  >
+                    Skip for today
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Settings Modal */}
         {showSettings && (
