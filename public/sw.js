@@ -1,7 +1,8 @@
-const CACHE_NAME = 'frog-v3';
+const CACHE_NAME = 'frog-v4';
 const urlsToCache = [
   '/',
   '/offline',
+  '/stats',
   '/manifest.json',
   '/icons/icon.svg'
 ];
@@ -88,7 +89,7 @@ self.addEventListener('push', (event) => {
     icon: data.icon || '/icons/icon.svg',
     badge: data.badge || '/icons/icon.svg',
     tag: data.tag || 'frog-notification',
-    vibrate: [100, 50, 100],
+    vibrate: [200, 100, 200, 100, 200],
     data: data.data || { url: '/' },
     actions: data.actions || [
       { action: 'open', title: 'Open Frog' },
@@ -162,18 +163,31 @@ self.addEventListener('message', (event) => {
       clearTimeout(scheduledNotifications.get(id));
     }
     
+    // Determine vibration pattern based on notification type
+    let vibrate = [100, 50, 100];
+    if (notification.tag === 'focus-end') {
+      // Celebratory vibration for timer completion!
+      vibrate = [200, 100, 200, 100, 200, 100, 400];
+    }
+    
     const timeoutId = setTimeout(() => {
       self.registration.showNotification(notification.title, {
         body: notification.body,
         icon: notification.icon || '/icons/icon.svg',
         badge: notification.badge || '/icons/icon.svg',
         tag: notification.tag,
-        vibrate: [100, 50, 100],
+        vibrate: vibrate,
         data: notification.data || { url: '/' },
-        actions: [
-          { action: 'open', title: 'Open Frog' },
-          { action: 'dismiss', title: 'Dismiss' }
-        ]
+        actions: notification.tag === 'focus-end' 
+          ? [
+              { action: 'celebrate', title: '🎉 Celebrate!' },
+              { action: 'open', title: 'Open App' }
+            ]
+          : [
+              { action: 'open', title: 'Open Frog' },
+              { action: 'dismiss', title: 'Dismiss' }
+            ],
+        requireInteraction: notification.tag === 'focus-end'
       });
       if (id) scheduledNotifications.delete(id);
     }, delay);
@@ -197,16 +211,24 @@ self.addEventListener('message', (event) => {
     }
   }
   
-  // Show immediate notification
+  // Show immediate notification (for timer completion)
   if (event.data.type === 'SHOW_NOTIFICATION') {
     const { notification } = event.data;
+    
+    // Determine vibration pattern
+    let vibrate = [100, 50, 100];
+    if (notification.tag === 'focus-end') {
+      vibrate = [200, 100, 200, 100, 200, 100, 400];
+    }
+    
     self.registration.showNotification(notification.title, {
       body: notification.body,
       icon: notification.icon || '/icons/icon.svg',
       badge: notification.badge || '/icons/icon.svg',
       tag: notification.tag,
-      vibrate: [100, 50, 100],
-      data: notification.data || { url: '/' }
+      vibrate: vibrate,
+      data: notification.data || { url: '/' },
+      requireInteraction: notification.tag === 'focus-end'
     });
   }
 });
