@@ -54,7 +54,16 @@ export default function InstallPrompt() {
   if (isStandalone || !showPrompt) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 animate-slide-up">
+    <div 
+      className="fixed bottom-0 left-0 right-0 z-50 p-4"
+      style={{ animation: 'slideUp 0.3s ease-out' }}
+    >
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(100%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
       <div className="max-w-md mx-auto bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl shadow-2xl overflow-hidden">
         <div className="p-4 flex items-start gap-3">
           <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
@@ -84,11 +93,11 @@ export default function InstallPrompt() {
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="bg-white/20 rounded-full w-5 h-5 flex items-center justify-center text-xs">2</span>
-                  Tap "Add to Home Screen"
+                  Tap &quot;Add to Home Screen&quot;
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="bg-white/20 rounded-full w-5 h-5 flex items-center justify-center text-xs">3</span>
-                  Tap "Add" to confirm
+                  Tap &quot;Add&quot; to confirm
                 </li>
               </ol>
             </div>
@@ -107,10 +116,6 @@ export default function InstallPrompt() {
           </div>
         )}
       </div>
-      <style jsx>{\`
-        @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .animate-slide-up { animation: slide-up 0.3s ease-out; }
-      \`}</style>
     </div>
   );
 }
