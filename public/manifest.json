@@ -1,13 +1,16 @@
 {
-  "name": "FocusFlow",
+  "name": "FocusFlow - Compassionate Productivity",
   "short_name": "FocusFlow",
-  "description": "Compassionate productivity for brains that work differently",
+  "description": "A time-blocking app that works with your brain, not against it. Features energy-based task filtering, gamification, and the Eat the Frog methodology.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#8b5cf6",
   "orientation": "portrait-primary",
   "scope": "/",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": ["productivity", "lifestyle", "utilities"],
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -58,14 +61,46 @@
       "purpose": "maskable any"
     }
   ],
-  "categories": ["productivity", "lifestyle"],
   "shortcuts": [
     {
-      "name": "Quick Check-in",
-      "short_name": "Check-in",
-      "description": "Start your energy check-in",
+      "name": "Quick Check-In",
+      "short_name": "Check-In",
+      "description": "Start your day with an energy check",
       "url": "/?action=checkin",
       "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Pick a Frog",
+      "short_name": "Frog",
+      "description": "Choose your hardest task to tackle first",
+      "url": "/?action=frog",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Start Focus",
+      "short_name": "Focus",
+      "description": "Jump straight into focus mode",
+      "url": "/?action=timer",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Main Dashboard with Task Categories"
+    },
+    {
+      "src": "/screenshots/focus-mode.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Focus Mode Timer"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "handle_links": "preferred"
 }
