@@ -1,10 +1,13 @@
-const CACHE_NAME = 'focusflow-v2';
+const CACHE_NAME = 'frog-v3';
 const urlsToCache = [
   '/',
   '/offline',
   '/manifest.json',
   '/icons/icon.svg'
 ];
+
+// Scheduled notifications storage
+const scheduledNotifications = new Map();
 
 // Install event - cache essential files
 self.addEventListener('install', (event) => {
@@ -60,14 +63,14 @@ self.addEventListener('fetch', (event) => {
 
 // Push notification event
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push received:', event);
+  console.log('[Frog SW] Push received:', event);
   
   let data = {
-    title: 'FocusFlow',
-    body: 'Time to focus!',
+    title: '🐸 Frog',
+    body: 'Time to eat your frog!',
     icon: '/icons/icon.svg',
     badge: '/icons/icon.svg',
-    tag: 'focusflow-notification',
+    tag: 'frog-notification',
     data: { url: '/' }
   };
   
@@ -84,11 +87,11 @@ self.addEventListener('push', (event) => {
     body: data.body,
     icon: data.icon || '/icons/icon.svg',
     badge: data.badge || '/icons/icon.svg',
-    tag: data.tag || 'focusflow-notification',
+    tag: data.tag || 'frog-notification',
     vibrate: [100, 50, 100],
     data: data.data || { url: '/' },
     actions: data.actions || [
-      { action: 'open', title: 'Open FocusFlow' },
+      { action: 'open', title: 'Open Frog' },
       { action: 'dismiss', title: 'Dismiss' }
     ],
     requireInteraction: data.requireInteraction || false
@@ -101,7 +104,7 @@ self.addEventListener('push', (event) => {
 
 // Notification click event
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked:', event.action);
+  console.log('[Frog SW] Notification clicked:', event.action);
   
   event.notification.close();
   
@@ -131,7 +134,7 @@ self.addEventListener('notificationclick', (event) => {
 
 // Background sync for offline actions
 self.addEventListener('sync', (event) => {
-  console.log('[SW] Background sync:', event.tag);
+  console.log('[Frog SW] Background sync:', event.tag);
   
   if (event.tag === 'sync-tasks') {
     event.waitUntil(syncTasks());
@@ -139,21 +142,99 @@ self.addEventListener('sync', (event) => {
 });
 
 async function syncTasks() {
-  console.log('[SW] Syncing tasks...');
+  console.log('[Frog SW] Syncing tasks...');
 }
 
 // Message handler for communication with main app
 self.addEventListener('message', (event) => {
-  console.log('[SW] Message received:', event.data);
+  console.log('[Frog SW] Message received:', event.data);
   
   if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
   
+  // Schedule notification with delay
   if (event.data.type === 'SCHEDULE_NOTIFICATION') {
-    const { delay, notification } = event.data;
-    setTimeout(() => {
-      self.registration.showNotification(notification.title, notification);
+    const { id, delay, notification } = event.data;
+    
+    // Clear any existing scheduled notification with same ID
+    if (id && scheduledNotifications.has(id)) {
+      clearTimeout(scheduledNotifications.get(id));
+    }
+    
+    const timeoutId = setTimeout(() => {
+      self.registration.showNotification(notification.title, {
+        body: notification.body,
+        icon: notification.icon || '/icons/icon.svg',
+        badge: notification.badge || '/icons/icon.svg',
+        tag: notification.tag,
+        vibrate: [100, 50, 100],
+        data: notification.data || { url: '/' },
+        actions: [
+          { action: 'open', title: 'Open Frog' },
+          { action: 'dismiss', title: 'Dismiss' }
+        ]
+      });
+      if (id) scheduledNotifications.delete(id);
     }, delay);
+    
+    if (id) scheduledNotifications.set(id, timeoutId);
+    
+    // Confirm scheduling
+    event.source?.postMessage({
+      type: 'NOTIFICATION_SCHEDULED',
+      id: id,
+      scheduledFor: Date.now() + delay
+    });
+  }
+  
+  // Cancel scheduled notification
+  if (event.data.type === 'CANCEL_NOTIFICATION') {
+    const { id } = event.data;
+    if (id && scheduledNotifications.has(id)) {
+      clearTimeout(scheduledNotifications.get(id));
+      scheduledNotifications.delete(id);
+    }
+  }
+  
+  // Show immediate notification
+  if (event.data.type === 'SHOW_NOTIFICATION') {
+    const { notification } = event.data;
+    self.registration.showNotification(notification.title, {
+      body: notification.body,
+      icon: notification.icon || '/icons/icon.svg',
+      badge: notification.badge || '/icons/icon.svg',
+      tag: notification.tag,
+      vibrate: [100, 50, 100],
+      data: notification.data || { url: '/' }
+    });
   }
 });
+
+// Periodic background sync for daily reminders (if supported)
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'daily-checkin') {
+    event.waitUntil(showDailyCheckinReminder());
+  }
+});
+
+async function showDailyCheckinReminder() {
+  const now = new Date();
+  const hour = now.getHours();
+  
+  // Only show between 7am and 10am
+  if (hour >= 7 && hour <= 10) {
+    await self.registration.showNotification('🐸 Good Morning!', {
+      body: "Time to check your energy and pick today's frog!",
+      icon: '/icons/icon.svg',
+      badge: '/icons/icon.svg',
+      tag: 'daily-checkin',
+      vibrate: [100, 50, 100],
+      data: { url: '/', action: 'checkin' },
+      actions: [
+        { action: 'checkin', title: "Let's Go!" },
+        { action: 'dismiss', title: 'Later' }
+      ]
+    });
+  }
+}
