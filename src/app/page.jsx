@@ -5,6 +5,8 @@ import { supabase, getTasks, createTask, updateTask, completeTask as dbCompleteT
 import NotificationManager, { NOTIFICATION_TYPES } from '@/components/NotificationManager';
 import { PageBackground, useBackground } from '@/components/BackgroundContext';
 import BackgroundSelector from '@/components/BackgroundSelector';
+import { useAchievements } from '@/components/AchievementsContext';
+import { AchievementPopup } from '@/components/AchievementBadge';
 
 // Categories with colors
 const CATEGORIES = {
@@ -107,7 +109,9 @@ export default function Frog() {
   const [frogCompleted, setFrogCompleted] = useState(false);
   const [dailyFrog, setDailyFrog] = useState(null);
   const [showAddTask, setShowAddTask] = useState(false);
-  const [newTask, setNewTask] = useState({ title: '', category: 'personal', difficulty: 2 });
+  const [newTask, setNewTask] = useState({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25 });
+  const [timerStartTime, setTimerStartTime] = useState(null);
+  const [timeEstimates, setTimeEstimates] = useState({}); // { taskId: { estimated, actual, completed_at } }
   const [isLoaded, setIsLoaded] = useState(false);
   const [syncStatus, setSyncStatus] = useState('syncing');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -119,6 +123,9 @@ export default function Frog() {
   const [userId] = useState('justin');
   
   const timerRef = useRef(null);
+  
+  // Achievements hook
+  const { checkAchievements, stats: achievementStats } = useAchievements();
 
   // Load data from Supabase on mount
   useEffect(() => {
@@ -182,6 +189,14 @@ export default function Frog() {
         // Load subtasks from localStorage
         const savedSubtasks = Storage.get('subtasks', {});
         setSubtasks(savedSubtasks);
+        
+        // Load time estimates
+        const savedEstimates = Storage.get('timeEstimates', {});
+        setTimeEstimates(savedEstimates);
+        
+        // Check for rollover tasks (from previous days)
+        checkRolloverTasks();
+        
         setIsLoaded(true);
       }
     };
@@ -195,6 +210,28 @@ export default function Frog() {
       Storage.set('subtasks', subtasks);
     }
   }, [subtasks]);
+
+  // Save time estimates to localStorage
+  useEffect(() => {
+    if (Object.keys(timeEstimates).length > 0) {
+      Storage.set('timeEstimates', timeEstimates);
+    }
+  }, [timeEstimates]);
+
+  // Rollover tasks function - move incomplete tasks from previous days
+  const checkRolloverTasks = () => {
+    const today = new Date().toDateString();
+    const lastCheckDate = Storage.get('lastRolloverCheck', null);
+    
+    if (lastCheckDate !== today) {
+      // Mark today as checked
+      Storage.set('lastRolloverCheck', today);
+      
+      // Tasks automatically carry over since we don't delete incomplete ones
+      // Just log for awareness
+      console.log('Rollover check complete - tasks persist automatically');
+    }
+  };
 
   // Timer logic
   useEffect(() => {
@@ -309,6 +346,7 @@ export default function Frog() {
     setTimerMinutes(minutes);
     setTimerSeconds(0);
     setTimerRunning(true);
+    setTimerStartTime(Date.now());
     setScreen('focus');
   };
 
@@ -316,6 +354,62 @@ export default function Frog() {
     const baseXP = task.difficulty * 10;
     const frogBonus = task.frog ? 20 : 0;
     const earnedXP = baseXP + frogBonus;
+    
+    // Calculate actual time spent (if timer was used)
+    let actualMinutes = 0;
+    let estimatedMinutes = task.estimatedMinutes || 25;
+    let timeSaved = 0;
+    
+    if (timerStartTime) {
+      actualMinutes = Math.round((Date.now() - timerStartTime) / 60000);
+      timeSaved = Math.max(0, estimatedMinutes - actualMinutes);
+    }
+    
+    // Save time estimate data
+    const now = new Date();
+    const timeData = {
+      estimated: estimatedMinutes,
+      actual: actualMinutes,
+      timeSaved: timeSaved,
+      completed_at: now.toISOString(),
+      date: now.toISOString().split('T')[0],
+      hour: now.getHours()
+    };
+    
+    setTimeEstimates(prev => ({
+      ...prev,
+      [task.id]: timeData
+    }));
+    
+    // Update achievement stats
+    const currentStats = Storage.get('achievement_stats', {
+      tasksCompleted: 0,
+      frogsEaten: 0,
+      totalTimeSaved: 0,
+      accurateEstimates: 0,
+      beatEstimates: 0,
+      subtasksCompleted: 0,
+      earlyTasks: 0,
+      lateTasks: 0,
+      weekendTasks: 0
+    });
+    
+    const newStats = {
+      ...currentStats,
+      tasksCompleted: currentStats.tasksCompleted + 1,
+      frogsEaten: task.frog ? currentStats.frogsEaten + 1 : currentStats.frogsEaten,
+      totalTimeSaved: currentStats.totalTimeSaved + timeSaved,
+      beatEstimates: actualMinutes < estimatedMinutes ? currentStats.beatEstimates + 1 : currentStats.beatEstimates,
+      accurateEstimates: Math.abs(actualMinutes - estimatedMinutes) <= 5 ? currentStats.accurateEstimates + 1 : currentStats.accurateEstimates,
+      earlyTasks: now.getHours() < 7 ? currentStats.earlyTasks + 1 : currentStats.earlyTasks,
+      lateTasks: now.getHours() >= 23 ? currentStats.lateTasks + 1 : currentStats.lateTasks,
+      weekendTasks: [0, 6].includes(now.getDay()) ? currentStats.weekendTasks + 1 : currentStats.weekendTasks,
+      totalXP: xp + earnedXP,
+      level: Math.floor((xp + earnedXP) / 100) + 1
+    };
+    
+    Storage.set('achievement_stats', newStats);
+    checkAchievements(newStats);
     
     try {
       await dbCompleteTask(task.id, earnedXP);
@@ -344,7 +438,7 @@ export default function Frog() {
     setLevel(Math.floor(newXP / 100) + 1);
     
     setTasks(prev => prev.filter(t => t.id !== task.id));
-    setCompletedTasks(prev => [...prev, { ...task, completed: true }]);
+    setCompletedTasks(prev => [...prev, { ...task, completed: true, timeData }]);
     
     if (task.frog) {
       setFrogCompleted(true);
@@ -355,11 +449,12 @@ export default function Frog() {
     setTimeout(() => setShowCelebration(false), 2000);
     
     setFocusTask(null);
+    setTimerStartTime(null);
     setScreen('tasks');
     
     Storage.set('xp', newXP);
     Storage.set('level', Math.floor(newXP / 100) + 1);
-  }, [xp, completedTasks.length, userId]);
+  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements]);
 
   const cancelFocus = () => {
     setTimerRunning(false);
@@ -397,6 +492,7 @@ export default function Frog() {
         title: createdTask.title,
         category: createdTask.category,
         difficulty: createdTask.difficulty,
+        estimatedMinutes: newTask.estimatedMinutes,
         frog: false
       }]);
       
@@ -410,12 +506,13 @@ export default function Frog() {
         title: newTask.title,
         category: newTask.category,
         difficulty: newTask.difficulty,
+        estimatedMinutes: newTask.estimatedMinutes,
         frog: false
       };
       setTasks(prev => [...prev, localTask]);
     }
     
-    setNewTask({ title: '', category: 'personal', difficulty: 2 });
+    setNewTask({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25 });
     setShowAddTask(false);
   };
 
@@ -1119,6 +1216,23 @@ export default function Frog() {
                     </div>
                   </div>
                   
+                  <div>
+                    <label className="text-white/60 text-sm mb-2 block">Time Estimate</label>
+                    <div className="flex gap-2">
+                      {[5, 15, 25, 45, 60].map((mins) => (
+                        <button
+                          key={mins}
+                          onClick={() => setNewTask(prev => ({ ...prev, estimatedMinutes: mins }))}
+                          className={`flex-1 glass-button py-3 rounded-xl text-center transition-all ${
+                            newTask.estimatedMinutes === mins ? 'ring-2 ring-blue-400/50 bg-blue-400/10' : ''
+                          }`}
+                        >
+                          <span className="text-blue-400 text-sm">{mins}m</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
                   <button
                     onClick={handleAddTask}
                     disabled={!newTask.title.trim()}
@@ -1159,6 +1273,9 @@ export default function Frog() {
           onClose={() => setShowBackgroundSelector(false)}
           currentPage="home"
         />
+
+        {/* Achievement Unlock Popup */}
+        <AchievementPopup />
       </div>
     </PageBackground>
   );
