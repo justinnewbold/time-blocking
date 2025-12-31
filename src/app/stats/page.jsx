@@ -328,6 +328,168 @@ const DailyTimeline = ({ data }) => {
   );
 };
 
+// Streak Calendar - GitHub-style contribution graph
+const StreakCalendar = ({ completedDates, thoughtDump = [] }) => {
+  // Generate last 12 weeks of data
+  const weeks = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Start from 12 weeks ago, on a Sunday
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - 83); // ~12 weeks
+  startDate.setDate(startDate.getDate() - startDate.getDay()); // Move to Sunday
+  
+  for (let w = 0; w < 12; w++) {
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + (w * 7) + d);
+      const dateStr = date.toDateString();
+      
+      // Count tasks completed on this date
+      const count = completedDates.filter(cd => cd === dateStr).length;
+      
+      // Count thoughts captured
+      const thoughts = thoughtDump.filter(t => new Date(t.timestamp).toDateString() === dateStr).length;
+      
+      week.push({
+        date,
+        dateStr,
+        count,
+        thoughts,
+        isToday: date.toDateString() === today.toDateString(),
+        isFuture: date > today
+      });
+    }
+    weeks.push(week);
+  }
+  
+  // Calculate streak
+  let currentStreak = 0;
+  let maxStreak = 0;
+  let tempStreak = 0;
+  const checkDate = new Date(today);
+  
+  // Check backwards from today
+  while (true) {
+    const dateStr = checkDate.toDateString();
+    const hasActivity = completedDates.includes(dateStr);
+    if (hasActivity) {
+      currentStreak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else if (checkDate.toDateString() === today.toDateString()) {
+      // Today doesn't have activity yet, that's ok - check yesterday
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  
+  // Find max streak
+  completedDates.sort((a, b) => new Date(a) - new Date(b));
+  completedDates.forEach((dateStr, i) => {
+    if (i === 0) {
+      tempStreak = 1;
+    } else {
+      const prevDate = new Date(completedDates[i - 1]);
+      const currDate = new Date(dateStr);
+      const diffDays = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        tempStreak++;
+      } else {
+        tempStreak = 1;
+      }
+    }
+    maxStreak = Math.max(maxStreak, tempStreak);
+  });
+  
+  // Calculate total active days
+  const uniqueDays = [...new Set(completedDates)].length;
+  
+  // Get intensity color
+  const getColor = (count) => {
+    if (count === 0) return 'bg-white/5';
+    if (count === 1) return 'bg-green-900';
+    if (count === 2) return 'bg-green-700';
+    if (count <= 4) return 'bg-green-500';
+    return 'bg-green-400';
+  };
+  
+  return (
+    <div className="glass-card p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-white font-semibold flex items-center gap-2">
+          <span>🔥</span> Activity Streak
+        </h3>
+        <div className="flex items-center gap-4 text-xs">
+          <div>
+            <span className="text-orange-400 font-bold">{currentStreak}</span>
+            <span className="text-white/40 ml-1">current</span>
+          </div>
+          <div>
+            <span className="text-green-400 font-bold">{maxStreak}</span>
+            <span className="text-white/40 ml-1">best</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Day labels */}
+      <div className="flex gap-1 mb-1">
+        <div className="w-6" />
+        <div className="flex-1 flex justify-between text-[10px] text-white/30 px-1">
+          <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+        </div>
+      </div>
+      
+      {/* Grid */}
+      <div className="flex gap-1">
+        {/* Week labels */}
+        <div className="flex flex-col justify-between text-[10px] text-white/30 w-6">
+          {weeks.filter((_, i) => i % 4 === 0).map((_, i) => (
+            <span key={i}>{new Date(weeks[i * 4]?.[0]?.date).toLocaleDateString('en', { month: 'short' })}</span>
+          ))}
+        </div>
+        
+        {/* Calendar grid */}
+        <div className="flex-1 grid grid-cols-12 gap-[2px]">
+          {weeks.map((week, wIdx) => (
+            <div key={wIdx} className="flex flex-col gap-[2px]">
+              {week.map((day, dIdx) => (
+                <div
+                  key={dIdx}
+                  className={`aspect-square rounded-sm transition-all ${
+                    day.isFuture ? 'bg-transparent' :
+                    day.isToday ? 'ring-2 ring-white/50 ' + getColor(day.count) :
+                    getColor(day.count)
+                  }`}
+                  title={`${day.date.toLocaleDateString()}: ${day.count} tasks${day.thoughts ? `, ${day.thoughts} thoughts` : ''}`}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* Legend */}
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/10">
+        <div className="flex items-center gap-2 text-xs text-white/40">
+          <span>Less</span>
+          <div className="flex gap-[2px]">
+            {['bg-white/5', 'bg-green-900', 'bg-green-700', 'bg-green-500', 'bg-green-400'].map((color, i) => (
+              <div key={i} className={`w-3 h-3 rounded-sm ${color}`} />
+            ))}
+          </div>
+          <span>More</span>
+        </div>
+        <div className="text-xs text-white/40">
+          {uniqueDays} active days
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Category breakdown
 const CategoryBreakdown = ({ tasks }) => {
   const categories = {};
@@ -429,6 +591,7 @@ export default function StatsPage() {
   const [timeEstimates, setTimeEstimates] = useState({});
   const [completedTasks, setCompletedTasks] = useState([]);
   const [moodLog, setMoodLog] = useState([]);
+  const [thoughtDump, setThoughtDump] = useState([]);
   const { stats: achievementStats } = useAchievements();
   
   // Load data
@@ -436,6 +599,7 @@ export default function StatsPage() {
     setTimeEstimates(Storage.get('timeEstimates', {}));
     setCompletedTasks(Storage.get('tasks', []).filter(t => t.completed));
     setMoodLog(Storage.get('moodLog', []));
+    setThoughtDump(Storage.get('thoughtDump', []));
   }, []);
   
   // Calculate stats
@@ -609,6 +773,9 @@ export default function StatsPage() {
           
           {/* Weekly Calendar */}
           <WeeklyCalendar completedDates={completedDates} />
+          
+          {/* GitHub-style Streak Calendar */}
+          <StreakCalendar completedDates={completedDates} thoughtDump={thoughtDump} />
           
           {/* Category Breakdown */}
           <CategoryBreakdown tasks={completedTasks} />
