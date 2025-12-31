@@ -16,6 +16,166 @@ const Storage = {
   }
 };
 
+// Energy levels reference
+const ENERGY_LEVELS = [
+  { value: 1, label: 'Exhausted', emoji: '😴', color: '#ef4444' },
+  { value: 2, label: 'Low', emoji: '😔', color: '#f97316' },
+  { value: 3, label: 'Okay', emoji: '😐', color: '#eab308' },
+  { value: 4, label: 'Good', emoji: '😊', color: '#22c55e' },
+];
+
+// Mood History Chart
+const MoodHistoryChart = ({ moodLog }) => {
+  if (!moodLog || moodLog.length === 0) {
+    return (
+      <div className="glass-card p-4">
+        <h3 className="text-white font-semibold mb-4">😊 Mood Throughout the Day</h3>
+        <p className="text-white/40 text-sm text-center py-8">Track your mood to see patterns!</p>
+      </div>
+    );
+  }
+  
+  // Group by date
+  const today = new Date().toDateString();
+  const todayMoods = moodLog.filter(m => new Date(m.timestamp).toDateString() === today);
+  
+  return (
+    <div className="glass-card p-4">
+      <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+        <span>😊</span> Today&apos;s Mood Journey
+        <span className="text-white/40 text-sm font-normal ml-auto">{todayMoods.length} changes</span>
+      </h3>
+      
+      {/* Timeline visualization */}
+      <div className="relative">
+        {/* Timeline line */}
+        <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-white/20 to-transparent" />
+        
+        <div className="space-y-3">
+          {todayMoods.map((entry, idx) => {
+            const time = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const lvl = ENERGY_LEVELS.find(e => e.value === entry.energy) || ENERGY_LEVELS[2];
+            const prevLvl = entry.previousEnergy ? ENERGY_LEVELS.find(e => e.value === entry.previousEnergy) : null;
+            const isImprovement = prevLvl && entry.energy > entry.previousEnergy;
+            const isDecline = prevLvl && entry.energy < entry.previousEnergy;
+            
+            return (
+              <div key={entry.id || idx} className="flex items-start gap-3 relative">
+                {/* Timeline dot */}
+                <div 
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl z-10 border-2"
+                  style={{ 
+                    backgroundColor: lvl.color + '20',
+                    borderColor: lvl.color + '40'
+                  }}
+                >
+                  {lvl.emoji}
+                </div>
+                
+                {/* Content */}
+                <div className="flex-1 bg-white/5 rounded-xl p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white font-medium">{lvl.label}</span>
+                    <span className="text-white/40 text-xs">{time}</span>
+                  </div>
+                  {entry.note && (
+                    <p className="text-white/50 text-sm mt-1">{entry.note}</p>
+                  )}
+                  {prevLvl && (
+                    <p className={`text-xs mt-1 ${isImprovement ? 'text-green-400' : isDecline ? 'text-orange-400' : 'text-white/30'}`}>
+                      {isImprovement ? '↗ Improved from' : isDecline ? '↘ Dropped from' : '→ Same as'} {prevLvl.label}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Average mood indicator */}
+      {todayMoods.length > 1 && (
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <div className="flex items-center justify-between">
+            <span className="text-white/60 text-sm">Average energy today:</span>
+            <div className="flex items-center gap-2">
+              {(() => {
+                const avg = Math.round(todayMoods.reduce((sum, m) => sum + m.energy, 0) / todayMoods.length);
+                const avgLvl = ENERGY_LEVELS.find(e => e.value === avg) || ENERGY_LEVELS[2];
+                return (
+                  <>
+                    <span className="text-xl">{avgLvl.emoji}</span>
+                    <span className="text-white font-medium">{avgLvl.label}</span>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 7-Day Mood Overview
+const WeeklyMoodChart = ({ allMoods }) => {
+  const days = [];
+  const today = new Date();
+  
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toDateString();
+    const dayMoods = allMoods.filter(m => new Date(m.timestamp).toDateString() === dateStr);
+    const avgEnergy = dayMoods.length > 0 
+      ? Math.round(dayMoods.reduce((sum, m) => sum + m.energy, 0) / dayMoods.length)
+      : 0;
+    
+    days.push({
+      label: date.toLocaleDateString('en', { weekday: 'short' }).charAt(0),
+      avgEnergy,
+      count: dayMoods.length,
+      isToday: i === 0
+    });
+  }
+  
+  return (
+    <div className="glass-card p-4">
+      <h3 className="text-white font-semibold mb-4">📊 7-Day Mood Average</h3>
+      <div className="flex items-end justify-between gap-2 h-24">
+        {days.map((day, idx) => {
+          const lvl = ENERGY_LEVELS.find(e => e.value === day.avgEnergy);
+          const height = day.avgEnergy > 0 ? (day.avgEnergy / 4) * 100 : 0;
+          
+          return (
+            <div key={idx} className="flex-1 flex flex-col items-center">
+              <div className="flex-1 w-full flex items-end justify-center">
+                {day.avgEnergy > 0 ? (
+                  <div 
+                    className="w-full rounded-t-lg transition-all duration-500 flex items-center justify-center"
+                    style={{ 
+                      height: `${height}%`, 
+                      backgroundColor: lvl?.color || '#666',
+                      minHeight: '20px'
+                    }}
+                  >
+                    <span className="text-sm">{lvl?.emoji}</span>
+                  </div>
+                ) : (
+                  <div className="w-full h-1 bg-white/10 rounded" />
+                )}
+              </div>
+              <p className={`text-xs mt-2 ${day.isToday ? 'text-green-400 font-bold' : 'text-white/40'}`}>
+                {day.label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // Glass stat card component
 const GlassStatCard = ({ icon, label, value, subValue, accent = 'green' }) => {
   const accents = {
@@ -268,12 +428,14 @@ export default function StatsPage() {
   const [showBackgroundSelector, setShowBackgroundSelector] = useState(false);
   const [timeEstimates, setTimeEstimates] = useState({});
   const [completedTasks, setCompletedTasks] = useState([]);
+  const [moodLog, setMoodLog] = useState([]);
   const { stats: achievementStats } = useAchievements();
   
   // Load data
   useEffect(() => {
     setTimeEstimates(Storage.get('timeEstimates', {}));
     setCompletedTasks(Storage.get('tasks', []).filter(t => t.completed));
+    setMoodLog(Storage.get('moodLog', []));
   }, []);
   
   // Calculate stats
@@ -429,6 +591,12 @@ export default function StatsPage() {
               </div>
             </div>
           </div>
+
+          {/* Mood Tracking Section */}
+          <MoodHistoryChart moodLog={moodLog} />
+          
+          {/* Weekly Mood Overview */}
+          <WeeklyMoodChart allMoods={moodLog} />
 
           {/* Time Saved Chart */}
           <TimeSavedChart data={weeklyTimeSaved} />
