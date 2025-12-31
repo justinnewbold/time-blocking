@@ -113,6 +113,9 @@ export default function Frog() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [scheduleNotification, setScheduleNotification] = useState(null);
   const [showBackgroundSelector, setShowBackgroundSelector] = useState(false);
+  const [expandedTask, setExpandedTask] = useState(null);
+  const [subtasks, setSubtasks] = useState({});  // { taskId: [{id, title, completed}] }
+  const [newSubtask, setNewSubtask] = useState('');
   const [userId] = useState('justin');
   
   const timerRef = useRef(null);
@@ -176,12 +179,22 @@ export default function Frog() {
         setLevel(Storage.get('level', 1));
         setStreak(Storage.get('streak', 0));
       } finally {
+        // Load subtasks from localStorage
+        const savedSubtasks = Storage.get('subtasks', {});
+        setSubtasks(savedSubtasks);
         setIsLoaded(true);
       }
     };
     
     loadData();
   }, [userId]);
+
+  // Save subtasks to localStorage when changed
+  useEffect(() => {
+    if (Object.keys(subtasks).length > 0) {
+      Storage.set('subtasks', subtasks);
+    }
+  }, [subtasks]);
 
   // Timer logic
   useEffect(() => {
@@ -404,6 +417,106 @@ export default function Frog() {
     
     setNewTask({ title: '', category: 'personal', difficulty: 2 });
     setShowAddTask(false);
+  };
+
+  // Play satisfying pop sound for subtask completion
+  const playSubtaskSound = (completed) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      if (completed) {
+        // Happy ascending pop for completion
+        oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime + 0.1);
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.15);
+        // Vibrate
+        if (navigator.vibrate) navigator.vibrate(50);
+      } else {
+        // Soft click for uncomplete
+        oscillator.frequency.value = 400;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.05);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.05);
+      }
+    } catch (e) {
+      console.log('Audio not available');
+    }
+  };
+
+  // Add a subtask to a task
+  const addSubtask = (taskId) => {
+    if (!newSubtask.trim()) return;
+    
+    const subtask = {
+      id: Date.now(),
+      title: newSubtask.trim(),
+      completed: false
+    };
+    
+    setSubtasks(prev => ({
+      ...prev,
+      [taskId]: [...(prev[taskId] || []), subtask]
+    }));
+    
+    setNewSubtask('');
+    playSubtaskSound(false);
+  };
+
+  // Toggle subtask completion with XP reward
+  const toggleSubtask = async (taskId, subtaskId) => {
+    const taskSubtasks = subtasks[taskId] || [];
+    const subtask = taskSubtasks.find(s => s.id === subtaskId);
+    if (!subtask) return;
+    
+    const newCompleted = !subtask.completed;
+    
+    // Update subtask
+    setSubtasks(prev => ({
+      ...prev,
+      [taskId]: prev[taskId].map(s => 
+        s.id === subtaskId ? { ...s, completed: newCompleted } : s
+      )
+    }));
+    
+    // Play sound
+    playSubtaskSound(newCompleted);
+    
+    // Award XP for completing (not uncompleting)
+    if (newCompleted) {
+      const earnedXP = 2; // Small XP for subtask
+      setXp(prev => prev + earnedXP);
+      
+      // Update in Supabase
+      try {
+        const newTotalXP = xp + earnedXP;
+        await upsertUserProgress({
+          user_id: userId,
+          total_xp: newTotalXP,
+          level: Math.floor(newTotalXP / 100) + 1
+        });
+      } catch (e) {
+        console.error('Error updating XP:', e);
+      }
+    }
+  };
+
+  // Get subtask progress for a task
+  const getSubtaskProgress = (taskId) => {
+    const taskSubtasks = subtasks[taskId] || [];
+    if (taskSubtasks.length === 0) return null;
+    const completed = taskSubtasks.filter(s => s.completed).length;
+    return { completed, total: taskSubtasks.length, percent: Math.round((completed / taskSubtasks.length) * 100) };
   };
 
   const filteredTasks = selectedCategory === 'all' 
@@ -768,50 +881,137 @@ export default function Frog() {
               <p className="text-white/50 text-sm">Add a new task to get started</p>
             </div>
           ) : (
-            sortedTasks.map((task, idx) => (
-              <div 
-                key={task.id}
-                className="glass-card p-4 animate-slide-up"
-                style={{ animationDelay: `${idx * 50}ms` }}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="glass-icon-sm w-11 h-11 flex items-center justify-center">
-                    <span className="text-xl">{CATEGORIES[task.category]?.emoji}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">{task.title}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span 
-                        className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ 
-                          backgroundColor: CATEGORIES[task.category]?.color + '20',
-                          color: CATEGORIES[task.category]?.color 
-                        }}
-                      >
-                        {CATEGORIES[task.category]?.name}
-                      </span>
-                      <span className="text-yellow-400 text-xs">
-                        {'⭐'.repeat(task.difficulty)}
-                      </span>
-                      {task.frog && <span className="text-sm">🐸</span>}
+            sortedTasks.map((task, idx) => {
+              const progress = getSubtaskProgress(task.id);
+              const isExpanded = expandedTask === task.id;
+              const taskSubtasks = subtasks[task.id] || [];
+              
+              return (
+                <div 
+                  key={task.id}
+                  className="glass-card p-4 animate-slide-up"
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                >
+                  {/* Task Header - Click to expand */}
+                  <div 
+                    className="flex items-center gap-3 cursor-pointer"
+                    onClick={() => setExpandedTask(isExpanded ? null : task.id)}
+                  >
+                    <div className="glass-icon-sm w-11 h-11 flex items-center justify-center">
+                      <span className="text-xl">{CATEGORIES[task.category]?.emoji}</span>
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{task.title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span 
+                          className="text-xs px-2 py-0.5 rounded-full"
+                          style={{ 
+                            backgroundColor: CATEGORIES[task.category]?.color + '20',
+                            color: CATEGORIES[task.category]?.color 
+                          }}
+                        >
+                          {CATEGORIES[task.category]?.name}
+                        </span>
+                        <span className="text-yellow-400 text-xs">
+                          {'⭐'.repeat(task.difficulty)}
+                        </span>
+                        {task.frog && <span className="text-sm">🐸</span>}
+                        {progress && (
+                          <span className="text-green-400 text-xs">
+                            {progress.completed}/{progress.total} ✓
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className={`text-white/40 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                      ▼
+                    </span>
+                  </div>
+                  
+                  {/* Subtask Progress Bar */}
+                  {progress && (
+                    <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-300"
+                        style={{ width: `${progress.percent}%` }}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Expanded Subtasks Section */}
+                  {isExpanded && (
+                    <div className="mt-4 space-y-2 animate-slide-down">
+                      {/* Existing Subtasks */}
+                      {taskSubtasks.map((subtask) => (
+                        <div 
+                          key={subtask.id}
+                          onClick={() => toggleSubtask(task.id, subtask.id)}
+                          className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
+                            subtask.completed 
+                              ? 'bg-green-500/20 border border-green-500/30' 
+                              : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                            subtask.completed 
+                              ? 'bg-green-500 border-green-500 scale-110' 
+                              : 'border-white/30'
+                          }`}>
+                            {subtask.completed && <span className="text-white text-sm">✓</span>}
+                          </div>
+                          <span className={`flex-1 text-sm ${
+                            subtask.completed ? 'text-white/50 line-through' : 'text-white'
+                          }`}>
+                            {subtask.title}
+                          </span>
+                          {subtask.completed && (
+                            <span className="text-green-400 text-xs">+2 XP</span>
+                          )}
+                        </div>
+                      ))}
+                      
+                      {/* Add Subtask Input */}
+                      <div className="flex gap-2 mt-3">
+                        <input
+                          type="text"
+                          value={newSubtask}
+                          onChange={(e) => setNewSubtask(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && addSubtask(task.id)}
+                          placeholder="Add a step..."
+                          className="flex-1 glass-input px-4 py-2.5 rounded-xl text-white text-sm placeholder-white/30"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); addSubtask(task.id); }}
+                          className="glass-button px-4 py-2.5 rounded-xl text-white/80 text-sm font-medium hover:text-white"
+                        >
+                          +
+                        </button>
+                      </div>
+                      
+                      {taskSubtasks.length === 0 && (
+                        <p className="text-white/40 text-xs text-center py-2">
+                          Break this task into smaller steps for easy wins! 🎯
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Timer Preset Buttons */}
+                  <div className="flex gap-2 mt-3">
+                    {TIMER_PRESETS.map((preset) => (
+                      <button
+                        key={preset.minutes}
+                        onClick={(e) => { e.stopPropagation(); startFocus(task, preset.minutes); }}
+                        className="flex-1 glass-button py-2.5 rounded-xl text-white/80 text-sm font-medium hover:text-white transition-colors"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                
-                {/* Timer Preset Buttons */}
-                <div className="flex gap-2">
-                  {TIMER_PRESETS.map((preset) => (
-                    <button
-                      key={preset.minutes}
-                      onClick={() => startFocus(task, preset.minutes)}
-                      className="flex-1 glass-button py-2.5 rounded-xl text-white/80 text-sm font-medium hover:text-white transition-colors"
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
