@@ -53,23 +53,23 @@
 - [x] Timer presets (5, 15, 25, 45 min)
 - [x] Celebration animations on task completion
 - [x] Sync status indicator
+- [x] **Rebrand to "Frog"** ✅ (completed Dec 31, 2025)
+- [x] **Domain frog.newbold.cloud connected** ✅
 
 ---
 
 ## 📋 To-Do List
 
-### 🔴 Priority 1 - In Progress
-- [ ] **Rebrand to "Frog"** - Update app name, manifest, branding throughout
-- [ ] **Connect frog.newbold.cloud domain** - Verify domain is connected in Vercel
-
-### 🟠 Priority 2 - High Impact
+### 🔴 Priority 1 - Next Up
 - [ ] **Stats Dashboard** - Weekly XP chart, focus time, category breakdown, streak calendar
 - [ ] **Push Notifications** - Daily check-in reminders, streak alerts, timer completion
+
+### 🟠 Priority 2 - High Impact
 - [ ] **Authentication (Supabase Auth)** - Email/password or magic link login
 - [ ] **Recurring Tasks** - Daily/weekly/monthly repeat options
+- [ ] **Apple Reminders Sync** - Two-way sync with iOS Reminders
 
 ### 🟡 Priority 3 - Medium Impact
-- [ ] **Apple Reminders Sync** - Two-way sync with iOS Reminders
 - [ ] **Google Calendar Integration** - Auto-block time during focus sessions
 - [ ] **Sound Effects** - Completion sounds, timer alerts, level up sounds
 - [ ] **Due Dates & Priorities** - Add deadlines, sort by urgency
@@ -93,19 +93,19 @@
 ```
 src/
 ├── app/
-│   ├── page.jsx          # Main app component
+│   ├── page.jsx          # Main app component (Frog)
 │   ├── layout.jsx        # Root layout with PWA meta tags
 │   ├── globals.css       # Tailwind styles
 │   └── offline/
 │       └── page.jsx      # Offline fallback page
 ├── components/
-│   ├── InstallPrompt.jsx # PWA install prompt
+│   ├── InstallPrompt.jsx # PWA install prompt (green theme)
 │   ├── ServiceWorkerRegister.jsx
 │   └── NotificationManager.jsx
 ├── lib/
 │   └── supabase.js       # Supabase client & helpers
 public/
-├── manifest.json         # PWA manifest
+├── manifest.json         # PWA manifest (Frog branding)
 ├── sw.js                 # Service worker
 ├── icon.svg              # App icon
 └── icons/                # PWA icons (various sizes)
@@ -118,22 +118,29 @@ public/
 **Date**: December 31, 2025
 
 **What was done**:
-1. Set up Supabase database with 4 tables
-2. Seeded 30 tasks across 6 categories
-3. Integrated Supabase into page.jsx with real-time sync
-4. Added sync status indicator (☁️/🔄/📴)
-5. Created this PROJECT_STATUS.md file
+1. ✅ Rebranded entire app from "FocusFlow" to "Frog"
+2. ✅ Updated manifest.json with Frog name and green theme color
+3. ✅ Updated layout.jsx with new title and metadata
+4. ✅ Updated page.jsx component name and UI text
+5. ✅ Updated InstallPrompt with green theme and Frog branding
+6. ✅ Verified frog.newbold.cloud domain is connected and working
+
+**Files Updated**:
+- `public/manifest.json` - Name, theme color (green)
+- `src/app/layout.jsx` - Title, metadata, theme
+- `src/app/page.jsx` - Component name, loading text, header
+- `src/components/InstallPrompt.jsx` - Branding, green theme
 
 **Current state**:
-- App is fully functional at https://time-blocking-lovat.vercel.app
-- Database is connected and syncing
-- Next task: Rebrand to "Frog" and verify domain
+- App is live at https://frog.newbold.cloud with full Frog branding
+- All 4 rebrand commits deployed and READY
+- Next task: Stats Dashboard implementation
 
-**Next steps**:
-1. Update all branding from "FocusFlow" to "Frog"
-2. Update manifest.json with new name
-3. Verify frog.newbold.cloud domain connection
-4. Begin Stats Dashboard implementation
+**Commits this session**:
+- `fe58e1db` - rebrand: Update manifest.json - FocusFlow → Frog 🐸
+- `5f88558a` - rebrand: Update layout.jsx - FocusFlow → Frog 🐸
+- `333d5bde` - rebrand: Update page.jsx - FocusFlow → Frog 🐸
+- `dc9d32c5` - rebrand: Update InstallPrompt - FocusFlow → Frog 🐸 with green theme
 
 ---
 
@@ -146,14 +153,15 @@ When continuing this project:
 4. Use the stored IDs/keys above for API calls
 5. User prefers cloud-only development (no local CLI commands)
 6. Always push changes and provide PR/commit links
-7. App is now called "Frog" (not FocusFlow)
+7. App is now called **"Frog"** (not FocusFlow)
+8. Theme color is now **green** (#22c55e) not purple
 
 ---
 
 ## 📊 Database Schema Quick Reference
 
 ```sql
--- Tasks
+-- Tasks (table names kept as focusflow_ for backwards compatibility)
 focusflow_tasks: id, user_id, title, category, difficulty, 
                  energy_required, is_frog, completed, completed_at,
                  xp_earned, notes, created_at, updated_at
