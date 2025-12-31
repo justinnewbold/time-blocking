@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { supabase, getTasks, createTask, updateTask, completeTask as dbCompleteTask, getUserProgress, upsertUserProgress } from '@/lib/supabase';
 
 // Categories with colors
@@ -685,9 +686,17 @@ export default function Frog() {
               {frogCompleted && <span className="text-sm">🐸✓</span>}
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-white font-bold">Level {level}</p>
-            <p className="text-yellow-400 text-sm">{xp} XP</p>
+          <div className="flex items-center gap-3">
+            <Link 
+              href="/stats"
+              className="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-green-600/20 border border-green-500/30 hover:bg-green-600/40 transition-all"
+            >
+              <span className="text-lg">📊</span>
+            </Link>
+            <div className="text-right">
+              <p className="text-white font-bold">Level {level}</p>
+              <p className="text-green-400 text-sm">{xp} XP</p>
+            </div>
           </div>
         </div>
         
@@ -809,8 +818,8 @@ export default function Frog() {
         </button>
       </div>
       
-      {/* Bottom Stats */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-900 via-slate-900/95 to-transparent">
+      {/* Bottom Stats - Click to see detailed stats */}
+      <Link href="/stats" className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-900 via-slate-900/95 to-transparent hover:from-slate-800 transition-colors">
         <div className="flex justify-around text-center">
           <div>
             <p className="text-2xl font-bold text-white">{completedTasks.length}</p>
@@ -825,7 +834,8 @@ export default function Frog() {
             <p className="text-xs text-gray-400">Total XP</p>
           </div>
         </div>
-      </div>
+        <p className="text-center text-xs text-gray-500 mt-2">Tap for detailed stats 📊</p>
+      </Link>
     </div>
   );
 }
