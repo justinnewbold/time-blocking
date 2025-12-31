@@ -68,7 +68,7 @@ export async function completeTask(id, xpEarned) {
 }
 
 // User Progress
-export async function getUserProgress(userId = 'default-user') {
+export async function getUserProgress(userId) {
   const { data, error } = await supabase
     .from('focusflow_user_progress')
     .select('*')
@@ -82,7 +82,7 @@ export async function getUserProgress(userId = 'default-user') {
 export async function upsertUserProgress(progress) {
   const { data, error } = await supabase
     .from('focusflow_user_progress')
-    .upsert([{ ...progress, updated_at: new Date().toISOString() }])
+    .upsert([{ ...progress, updated_at: new Date().toISOString() }], { onConflict: 'user_id' })
     .select()
     .single()
   
@@ -123,8 +123,8 @@ export async function getTodaysSessions() {
   const { data, error } = await supabase
     .from('focusflow_sessions')
     .select('*')
-    .gte('started_at', `${today}T00:00:00`)
-    .lt('started_at', `${today}T23:59:59`)
+    .gte('started_at', today + 'T00:00:00')
+    .lt('started_at', today + 'T23:59:59')
   
   if (error) throw error
   return data
@@ -139,6 +139,28 @@ export function calculateXP(difficulty, energyRequired, isFrog) {
 
 // Calculate level from XP
 export function calculateLevel(totalXP) {
-  // Level up every 100 XP
   return Math.floor(totalXP / 100) + 1
+}
+
+// Sync initial tasks to database
+export async function syncInitialTasks(tasks, userId) {
+  const formattedTasks = tasks.map(task => ({
+    user_id: userId,
+    title: task.title,
+    category: task.category,
+    difficulty: task.difficulty,
+    energy_required: task.energyRequired || task.difficulty,
+    is_frog: false,
+    completed: task.completed || false,
+    notes: task.notes || null,
+    apple_reminder_id: task.appleReminderId || null
+  }))
+  
+  const { data, error } = await supabase
+    .from('focusflow_tasks')
+    .upsert(formattedTasks, { onConflict: 'apple_reminder_id' })
+    .select()
+  
+  if (error) throw error
+  return data
 }
