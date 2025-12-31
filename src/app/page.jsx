@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { supabase, getTasks, createTask, updateTask, completeTask as dbCompleteTask, getUserProgress, upsertUserProgress } from '@/lib/supabase';
+import NotificationManager, { NOTIFICATION_TYPES } from '@/components/NotificationManager';
 
 // Categories with colors
 const CATEGORIES = {
@@ -70,6 +71,8 @@ export default function Frog() {
   const [newTask, setNewTask] = useState({ title: '', category: 'personal', difficulty: 2 });
   const [isLoaded, setIsLoaded] = useState(false);
   const [syncStatus, setSyncStatus] = useState('syncing');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [scheduleNotification, setScheduleNotification] = useState(null);
   const [userId] = useState('justin');
   
   const timerRef = useRef(null);
@@ -183,6 +186,41 @@ export default function Frog() {
       }, 1000);
     } else if (timerRunning && timerMinutes === 0 && timerSeconds === 0) {
       setTimerRunning(false);
+      
+      // Play sound and vibrate for timer completion
+      if (typeof window !== 'undefined') {
+        try {
+          // Vibrate pattern (if supported)
+          if (navigator.vibrate) {
+            navigator.vibrate([200, 100, 200, 100, 200]);
+          }
+          
+          // Play completion sound
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          oscillator.frequency.value = 880; // A5 note
+          oscillator.type = 'sine';
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.5);
+        } catch (e) {
+          console.log('Audio not available:', e);
+        }
+      }
+      
+      // Send push notification
+      if (scheduleNotification && focusTask) {
+        const taskXP = focusTask.difficulty * 10 + (focusTask.frog ? 20 : 0);
+        scheduleNotification(NOTIFICATION_TYPES.FOCUS_END, 0, { 
+          xp: taskXP,
+          taskTitle: focusTask.title 
+        });
+      }
+      
       if (focusTask) {
         handleCompleteTask(focusTask);
       }
@@ -686,10 +724,16 @@ export default function Frog() {
               {frogCompleted && <span className="text-sm">🐸✓</span>}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowNotifications(true)}
+              className="flex flex-col items-center justify-center w-10 h-10 rounded-xl bg-slate-700/50 border border-slate-600/30 hover:bg-slate-600/50 transition-all"
+            >
+              <span className="text-lg">🔔</span>
+            </button>
             <Link 
               href="/stats"
-              className="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-green-600/20 border border-green-500/30 hover:bg-green-600/40 transition-all"
+              className="flex flex-col items-center justify-center w-10 h-10 rounded-xl bg-green-600/20 border border-green-500/30 hover:bg-green-600/40 transition-all"
             >
               <span className="text-lg">📊</span>
             </Link>
@@ -836,6 +880,14 @@ export default function Frog() {
         </div>
         <p className="text-center text-xs text-gray-500 mt-2">Tap for detailed stats 📊</p>
       </Link>
+      
+      {/* Notification Settings Modal */}
+      <NotificationManager
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        frogTask={dailyFrog}
+        onScheduleNotification={(fn) => setScheduleNotification(() => fn)}
+      />
     </div>
   );
 }
