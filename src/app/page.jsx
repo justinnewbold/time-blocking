@@ -238,6 +238,19 @@ export default function Frog() {
     };
   }, [timerRunning, timerMinutes, timerSeconds, focusTask]);
 
+  // Update document title with timer status
+  useEffect(() => {
+    if (timerRunning && focusTask) {
+      const timeStr = `${String(timerMinutes).padStart(2, '0')}:${String(timerSeconds).padStart(2, '0')}`;
+      document.title = `${timeStr} ⏱️ ${focusTask.title} | Frog 🐸`;
+    } else if (screen === 'focus' && focusTask) {
+      const timeStr = `${String(timerMinutes).padStart(2, '0')}:${String(timerSeconds).padStart(2, '0')}`;
+      document.title = `⏸️ ${timeStr} | Frog 🐸`;
+    } else {
+      document.title = 'Frog 🐸 - Eat Your Frogs First';
+    }
+  }, [timerRunning, timerMinutes, timerSeconds, focusTask, screen]);
+
   const handleEnergySelect = async (value) => {
     setEnergy(value);
     Storage.set('todayEnergy', value);
