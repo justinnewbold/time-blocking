@@ -3,13 +3,13 @@ import InstallPrompt from '@/components/InstallPrompt'
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 
 export const metadata = {
-  title: 'FocusFlow - Compassionate Productivity',
-  description: 'A time-blocking app that works with your brain, not against it. Features energy-based task filtering, gamification, and the Eat the Frog methodology.',
+  title: 'Frog 🐸 - Eat Your Frogs First',
+  description: 'Compassionate productivity app that works with your brain, not against it. Tackle your hardest tasks first with energy-based filtering and gamification.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'FocusFlow'
+    title: 'Frog'
   },
   formatDetection: {
     telephone: false
@@ -23,8 +23,8 @@ export const viewport = {
   userScalable: false,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#8b5cf6' },
-    { media: '(prefers-color-scheme: dark)', color: '#1e1b4b' }
+    { media: '(prefers-color-scheme: light)', color: '#22c55e' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f172a' }
   ]
 }
 
@@ -36,8 +36,8 @@ export default function RootLayout({ children }) {
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="FocusFlow" />
-        <meta name="msapplication-TileColor" content="#8b5cf6" />
+        <meta name="apple-mobile-web-app-title" content="Frog" />
+        <meta name="msapplication-TileColor" content="#22c55e" />
         
         <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/icons/icon.svg" />
