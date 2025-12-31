@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { supabase, getTasks, createTask, updateTask, completeTask as dbCompleteTask, getUserProgress, upsertUserProgress } from '@/lib/supabase';
 
 // Categories with colors
 const CATEGORIES = {
@@ -10,51 +11,6 @@ const CATEGORIES = {
   'music': { name: 'Music', color: '#8b5cf6', emoji: '🎵' },
   'personal': { name: 'Personal', color: '#06b6d4', emoji: '✨' },
 };
-
-// Initial tasks from Apple Reminders
-const INITIAL_TASKS = [
-  // Patty Shack Tasks
-  { id: 1, title: 'Review Q4 sales reports', category: 'patty-shack', difficulty: 3, frog: false },
-  { id: 2, title: 'Schedule manager meetings', category: 'patty-shack', difficulty: 2, frog: false },
-  { id: 3, title: 'Update inventory system', category: 'patty-shack', difficulty: 4, frog: true },
-  { id: 4, title: 'Review virtual brand performance', category: 'patty-shack', difficulty: 3, frog: false },
-  { id: 5, title: 'Call Denver location', category: 'patty-shack', difficulty: 2, frog: false },
-  { id: 6, title: 'Check Milwaukee staffing', category: 'patty-shack', difficulty: 2, frog: false },
-  { id: 7, title: 'Layton equipment maintenance', category: 'patty-shack', difficulty: 3, frog: false },
-  { id: 8, title: 'Review food costs', category: 'patty-shack', difficulty: 4, frog: true },
-  { id: 9, title: 'Update menu pricing', category: 'patty-shack', difficulty: 3, frog: false },
-  { id: 10, title: 'Schedule health inspections', category: 'patty-shack', difficulty: 2, frog: false },
-  
-  // Admin Tasks
-  { id: 11, title: 'File quarterly taxes', category: 'admin', difficulty: 5, frog: true },
-  { id: 12, title: 'Review insurance policies', category: 'admin', difficulty: 4, frog: true },
-  { id: 13, title: 'Update business licenses', category: 'admin', difficulty: 3, frog: false },
-  { id: 14, title: 'Pay vendor invoices', category: 'admin', difficulty: 2, frog: false },
-  { id: 15, title: 'Review payroll', category: 'admin', difficulty: 3, frog: false },
-  
-  // Home Tasks
-  { id: 16, title: 'Fix garage door', category: 'home', difficulty: 4, frog: true },
-  { id: 17, title: 'Clean out basement', category: 'home', difficulty: 5, frog: true },
-  { id: 18, title: 'Organize office', category: 'home', difficulty: 3, frog: false },
-  { id: 19, title: 'Schedule HVAC maintenance', category: 'home', difficulty: 2, frog: false },
-  { id: 20, title: 'Replace smoke detectors', category: 'home', difficulty: 2, frog: false },
-  
-  // Family Tasks
-  { id: 21, title: 'Plan date night with Aimee', category: 'family', difficulty: 1, frog: false },
-  { id: 22, title: "Mia's recital prep", category: 'family', difficulty: 2, frog: false },
-  { id: 23, title: 'Family dinner planning', category: 'family', difficulty: 2, frog: false },
-  
-  // Music Tasks
-  { id: 24, title: 'Practice KeyPerfect exercises', category: 'music', difficulty: 2, frog: false },
-  { id: 25, title: 'Record new track ideas', category: 'music', difficulty: 3, frog: false },
-  { id: 26, title: 'Update music studio setup', category: 'music', difficulty: 3, frog: false },
-  
-  // Personal Tasks
-  { id: 27, title: 'Doctor appointment', category: 'personal', difficulty: 2, frog: false },
-  { id: 28, title: 'Gym session', category: 'personal', difficulty: 2, frog: false },
-  { id: 29, title: 'Read 30 mins', category: 'personal', difficulty: 1, frog: false },
-  { id: 30, title: 'Meditation', category: 'personal', difficulty: 1, frog: false },
-];
 
 // Energy levels
 const ENERGY_LEVELS = [
@@ -72,7 +28,7 @@ const TIMER_PRESETS = [
   { minutes: 45, label: '45 min', description: 'Deep work' },
 ];
 
-// Storage helper for persistence
+// Local storage helper (fallback)
 const Storage = {
   get: (key, defaultValue) => {
     if (typeof window === 'undefined') return defaultValue;
@@ -112,46 +68,98 @@ export default function FocusFlow() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', category: 'personal', difficulty: 2 });
   const [isLoaded, setIsLoaded] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('syncing');
+  const [userId] = useState('justin');
   
   const timerRef = useRef(null);
 
-  // Load from storage on mount
+  // Load data from Supabase on mount
   useEffect(() => {
-    const storedTasks = Storage.get('tasks', null);
-    const storedCompleted = Storage.get('completedTasks', []);
-    const storedXp = Storage.get('xp', 0);
-    const storedStreak = Storage.get('streak', 0);
-    const storedEnergy = Storage.get('todayEnergy', null);
-    const storedDate = Storage.get('lastDate', null);
-    const today = new Date().toDateString();
+    const loadData = async () => {
+      try {
+        setSyncStatus('syncing');
+        
+        // Load tasks from Supabase
+        const dbTasks = await getTasks();
+        const incompleteTasks = dbTasks.filter(t => !t.completed);
+        const completed = dbTasks.filter(t => t.completed);
+        
+        // Transform to component format
+        const formattedTasks = incompleteTasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          category: t.category,
+          difficulty: t.difficulty,
+          frog: t.is_frog,
+          notes: t.notes
+        }));
+        
+        setTasks(formattedTasks);
+        setCompletedTasks(completed);
+        
+        // Load user progress
+        const progress = await getUserProgress(userId);
+        if (progress) {
+          setXp(progress.total_xp || 0);
+          setLevel(progress.level || 1);
+          setStreak(progress.current_streak || 0);
+        }
+        
+        // Check local energy for today
+        const storedEnergy = Storage.get('todayEnergy', null);
+        const storedDate = Storage.get('lastDate', null);
+        const today = new Date().toDateString();
+        
+        if (storedDate !== today) {
+          Storage.set('todayEnergy', null);
+          Storage.set('lastDate', today);
+          setEnergy(null);
+          setScreen('checkin');
+        } else if (storedEnergy) {
+          setEnergy(storedEnergy);
+          setScreen('main');
+        }
+        
+        setSyncStatus('synced');
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setSyncStatus('offline');
+        
+        // Fallback to localStorage
+        const storedTasks = Storage.get('tasks', []);
+        const storedCompleted = Storage.get('completedTasks', []);
+        setTasks(storedTasks);
+        setCompletedTasks(storedCompleted);
+        setXp(Storage.get('xp', 0));
+        setStreak(Storage.get('streak', 0));
+      }
+      
+      setIsLoaded(true);
+    };
     
-    // Reset energy if it's a new day
-    if (storedDate !== today) {
-      Storage.set('todayEnergy', null);
-      Storage.set('lastDate', today);
-      setEnergy(null);
-      setScreen('checkin');
-    } else if (storedEnergy) {
-      setEnergy(storedEnergy);
-      setScreen('main');
-    }
-    
-    setTasks(storedTasks || INITIAL_TASKS);
-    setCompletedTasks(storedCompleted);
-    setXp(storedXp);
-    setStreak(storedStreak);
-    setIsLoaded(true);
-  }, []);
+    loadData();
+  }, [userId]);
 
-  // Save to storage when state changes
-  useEffect(() => {
-    if (isLoaded) {
-      Storage.set('tasks', tasks);
-      Storage.set('completedTasks', completedTasks);
-      Storage.set('xp', xp);
-      Storage.set('streak', streak);
+  // Sync progress to Supabase
+  const syncProgress = useCallback(async (newXp, newStreak, tasksCompleted) => {
+    try {
+      await upsertUserProgress({
+        user_id: userId,
+        total_xp: newXp,
+        level: Math.floor(newXp / 100) + 1,
+        current_streak: newStreak,
+        tasks_completed: tasksCompleted,
+        last_activity_date: new Date().toISOString().split('T')[0]
+      });
+      setSyncStatus('synced');
+    } catch (error) {
+      console.error('Error syncing progress:', error);
+      setSyncStatus('offline');
+      // Save to localStorage as backup
+      Storage.set('xp', newXp);
+      Storage.set('streak', newStreak);
     }
-  }, [tasks, completedTasks, xp, streak, isLoaded]);
+  }, [userId]);
 
   // Calculate level from XP
   useEffect(() => {
@@ -174,9 +182,8 @@ export default function FocusFlow() {
       }, 1000);
     } else if (timerRunning && timerMinutes === 0 && timerSeconds === 0) {
       setTimerRunning(false);
-      // Timer completed - auto complete task
       if (focusTask) {
-        completeTask(focusTask);
+        handleCompleteTask(focusTask);
       }
     }
     
@@ -185,20 +192,51 @@ export default function FocusFlow() {
     };
   }, [timerRunning, timerMinutes, timerSeconds, focusTask]);
 
-  const handleEnergySelect = (value) => {
+  const handleEnergySelect = async (value) => {
     setEnergy(value);
     Storage.set('todayEnergy', value);
     Storage.set('lastDate', new Date().toDateString());
+    
+    // Log energy to Supabase
+    try {
+      await supabase.from('focusflow_energy_log').upsert({
+        user_id: userId,
+        energy_level: value,
+        log_date: new Date().toISOString().split('T')[0]
+      }, { onConflict: 'user_id,log_date' });
+    } catch (error) {
+      console.error('Error logging energy:', error);
+    }
+    
     setScreen('frog');
   };
 
-  const handleFrogSelect = (task) => {
+  const handleFrogSelect = async (task) => {
     setDailyFrog(task.id);
-    const updatedTasks = tasks.map(t => ({
-      ...t,
-      frog: t.id === task.id
-    }));
-    setTasks(updatedTasks);
+    
+    // Update all tasks - reset frog status and set new frog
+    try {
+      // First, unset any existing frogs
+      await supabase
+        .from('focusflow_tasks')
+        .update({ is_frog: false })
+        .eq('user_id', userId);
+      
+      // Set the new frog
+      await supabase
+        .from('focusflow_tasks')
+        .update({ is_frog: true })
+        .eq('id', task.id);
+      
+      const updatedTasks = tasks.map(t => ({
+        ...t,
+        frog: t.id === task.id
+      }));
+      setTasks(updatedTasks);
+    } catch (error) {
+      console.error('Error setting frog:', error);
+    }
+    
     setScreen('main');
   };
 
@@ -214,20 +252,41 @@ export default function FocusFlow() {
     setScreen('focus');
   };
 
-  const completeTask = useCallback((task) => {
+  const handleCompleteTask = useCallback(async (task) => {
     // Calculate XP
     let earnedXp = task.difficulty * 10;
     if (task.frog) {
-      earnedXp *= 2; // Double XP for frog!
+      earnedXp *= 2;
       setFrogCompleted(true);
     }
-    
-    // Add energy bonus
     if (energy >= 3) earnedXp += 10;
     
-    setXp(prev => prev + earnedXp);
-    setCompletedTasks(prev => [...prev, { ...task, completedAt: new Date().toISOString(), xpEarned: earnedXp }]);
+    const newXp = xp + earnedXp;
+    const newCompletedCount = completedTasks.length + 1;
+    
+    setXp(newXp);
+    
+    // Update task in Supabase
+    try {
+      await dbCompleteTask(task.id, earnedXp);
+      setSyncStatus('synced');
+    } catch (error) {
+      console.error('Error completing task:', error);
+      setSyncStatus('offline');
+    }
+    
+    // Update local state
+    setCompletedTasks(prev => [...prev, { 
+      ...task, 
+      completed: true,
+      completed_at: new Date().toISOString(), 
+      xp_earned: earnedXp 
+    }]);
     setTasks(prev => prev.filter(t => t.id !== task.id));
+    
+    // Sync progress
+    syncProgress(newXp, streak, newCompletedCount);
+    
     setShowCelebration(true);
     
     setTimeout(() => {
@@ -235,7 +294,7 @@ export default function FocusFlow() {
       setFocusTask(null);
       setScreen('main');
     }, 2000);
-  }, [energy]);
+  }, [xp, energy, streak, completedTasks.length, syncProgress]);
 
   const pauseTimer = () => {
     setTimerRunning(false);
@@ -265,19 +324,44 @@ export default function FocusFlow() {
     setDailyFrog(null);
   };
 
-  const addTask = () => {
+  const addNewTask = async () => {
     if (!newTask.title.trim()) return;
     
-    const task = {
-      id: Date.now(),
-      title: newTask.title.trim(),
-      category: newTask.category,
-      difficulty: newTask.difficulty,
-      frog: false,
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const dbTask = await createTask({
+        user_id: userId,
+        title: newTask.title.trim(),
+        category: newTask.category,
+        difficulty: newTask.difficulty,
+        energy_required: newTask.difficulty,
+        is_frog: false
+      });
+      
+      const task = {
+        id: dbTask.id,
+        title: dbTask.title,
+        category: dbTask.category,
+        difficulty: dbTask.difficulty,
+        frog: false
+      };
+      
+      setTasks(prev => [task, ...prev]);
+      setSyncStatus('synced');
+    } catch (error) {
+      console.error('Error creating task:', error);
+      setSyncStatus('offline');
+      
+      // Fallback: add locally
+      const task = {
+        id: Date.now().toString(),
+        title: newTask.title.trim(),
+        category: newTask.category,
+        difficulty: newTask.difficulty,
+        frog: false
+      };
+      setTasks(prev => [task, ...prev]);
+    }
     
-    setTasks(prev => [task, ...prev]);
     setNewTask({ title: '', category: 'personal', difficulty: 2 });
     setShowAddTask(false);
   };
@@ -295,7 +379,11 @@ export default function FocusFlow() {
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="animate-pulse text-white text-xl">Loading FocusFlow...</div>
+        <div className="text-center">
+          <div className="animate-spin text-4xl mb-4">⚡</div>
+          <div className="text-white text-xl">Loading FocusFlow...</div>
+          <div className="text-purple-300 text-sm mt-2">Syncing with cloud...</div>
+        </div>
       </div>
     );
   }
@@ -304,6 +392,17 @@ export default function FocusFlow() {
   if (screen === 'checkin') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6 flex flex-col">
+        {/* Sync indicator */}
+        <div className="absolute top-4 right-4">
+          <span className={`text-xs px-2 py-1 rounded-full ${
+            syncStatus === 'synced' ? 'bg-green-500/20 text-green-400' :
+            syncStatus === 'syncing' ? 'bg-yellow-500/20 text-yellow-400' :
+            'bg-red-500/20 text-red-400'
+          }`}>
+            {syncStatus === 'synced' ? '☁️ Synced' : syncStatus === 'syncing' ? '🔄 Syncing' : '📴 Offline'}
+          </span>
+        </div>
+        
         <div className="flex-1 flex flex-col justify-center">
           <h1 className="text-3xl font-bold text-white text-center mb-2">
             Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening'}, Justin
@@ -311,20 +410,20 @@ export default function FocusFlow() {
           <p className="text-purple-200 text-center mb-8">How&apos;s your energy today?</p>
           
           <div className="space-y-4">
-            {ENERGY_LEVELS.map((level) => (
+            {ENERGY_LEVELS.map((lvl) => (
               <button
-                key={level.value}
-                onClick={() => handleEnergySelect(level.value)}
+                key={lvl.value}
+                onClick={() => handleEnergySelect(lvl.value)}
                 className="w-full p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center gap-4 hover:bg-white/20 transition-all active:scale-98"
               >
-                <span className="text-4xl">{level.emoji}</span>
+                <span className="text-4xl">{lvl.emoji}</span>
                 <div className="flex-1 text-left">
-                  <p className="text-white font-semibold">{level.label}</p>
-                  <p className="text-purple-200 text-sm">{level.description}</p>
+                  <p className="text-white font-semibold">{lvl.label}</p>
+                  <p className="text-purple-200 text-sm">{lvl.description}</p>
                 </div>
                 <div 
                   className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: level.color }}
+                  style={{ backgroundColor: lvl.color }}
                 />
               </button>
             ))}
@@ -396,7 +495,9 @@ export default function FocusFlow() {
 
   // Focus Mode Screen
   if (screen === 'focus' && focusTask) {
-    const progress = ((timerMinutes * 60 + timerSeconds) / (TIMER_PRESETS.find(p => p.minutes === Math.ceil((timerMinutes * 60 + timerSeconds) / 60))?.minutes * 60 || 25 * 60)) * 100;
+    const totalSeconds = timerMinutes * 60 + timerSeconds;
+    const maxSeconds = 45 * 60; // Max 45 min
+    const progress = (totalSeconds / maxSeconds) * 100;
     
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6 flex flex-col">
@@ -480,7 +581,7 @@ export default function FocusFlow() {
               </button>
             )}
             <button
-              onClick={() => completeTask(focusTask)}
+              onClick={() => handleCompleteTask(focusTask)}
               className="px-8 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-all"
             >
               Done! ✓
@@ -506,6 +607,7 @@ export default function FocusFlow() {
               onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
               placeholder="Task title..."
               className="w-full p-3 bg-slate-700 text-white rounded-xl mb-4 outline-none focus:ring-2 focus:ring-purple-500"
+              autoFocus
             />
             
             <div className="mb-4">
@@ -554,7 +656,7 @@ export default function FocusFlow() {
                 Cancel
               </button>
               <button
-                onClick={addTask}
+                onClick={addNewTask}
                 className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-semibold"
               >
                 Add Task
@@ -568,7 +670,16 @@ export default function FocusFlow() {
       <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm z-40 p-4 border-b border-white/10">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold text-white">FocusFlow</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-white">FocusFlow</h1>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                syncStatus === 'synced' ? 'bg-green-500/20 text-green-400' :
+                syncStatus === 'syncing' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-red-500/20 text-red-400'
+              }`}>
+                {syncStatus === 'synced' ? '☁️' : syncStatus === 'syncing' ? '🔄' : '📴'}
+              </span>
+            </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm text-purple-300">Energy: {ENERGY_LEVELS.find(e => e.value === energy)?.emoji}</span>
               {frogCompleted && <span className="text-sm">🐸✓</span>}
@@ -581,7 +692,7 @@ export default function FocusFlow() {
         </div>
         
         {/* Category Filter */}
-        <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+        <div className="flex gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide">
           <button
             onClick={() => setSelectedCategory('all')}
             className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
