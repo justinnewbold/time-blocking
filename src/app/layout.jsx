@@ -1,80 +1,55 @@
-import './globals.css';
+import './globals.css'
+import InstallPrompt from '@/components/InstallPrompt'
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 
 export const metadata = {
   title: 'FocusFlow - Compassionate Productivity',
-  description: 'A time blocking app for brains that work differently. Energy-based task management with gamification.',
+  description: 'A time-blocking app that works with your brain, not against it. Features energy-based task filtering, gamification, and the Eat the Frog methodology.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'FocusFlow',
+    title: 'FocusFlow'
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-    viewportFit: 'cover',
-  },
-  themeColor: '#8b5cf6',
-  other: {
-    'mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'black-translucent',
-    'apple-mobile-web-app-title': 'FocusFlow',
-  },
-};
+  formatDetection: {
+    telephone: false
+  }
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#8b5cf6' },
+    { media: '(prefers-color-scheme: dark)', color: '#1e1b4b' }
+  ]
+}
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        {/* PWA Meta Tags */}
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#8b5cf6" />
-        
-        {/* iOS Specific */}
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="FocusFlow" />
+        <meta name="msapplication-TileColor" content="#8b5cf6" />
         
-        {/* iOS Icons */}
-        <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-152x152.png" />
-        
-        {/* iOS Splash Screens */}
-        <link rel="apple-touch-startup-image" href="/splash/splash-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
-        <link rel="apple-touch-startup-image" href="/splash/splash-1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" />
-        <link rel="apple-touch-startup-image" href="/splash/splash-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
-        
-        {/* Prevent zoom on input focus */}
-        <meta name="format-detection" content="telephone=no" />
+        <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/icons/icon.svg" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon.svg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon.svg" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon.svg" />
       </head>
-      <body className="antialiased bg-slate-900 text-white overflow-x-hidden">
-        {/* Safe area wrapper for iOS notch/home indicator */}
-        <div className="min-h-screen min-h-[100dvh] pb-safe pt-safe">
-          {children}
-        </div>
-        
-        {/* Service Worker Registration */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                    console.log('SW registered: ', registration);
-                  }).catch(function(error) {
-                    console.log('SW registration failed: ', error);
-                  });
-                });
-              }
-            `,
-          }}
-        />
+      <body className="bg-slate-900 text-white antialiased overscroll-none">
+        <ServiceWorkerRegister />
+        {children}
+        <InstallPrompt />
       </body>
     </html>
-  );
+  )
 }
