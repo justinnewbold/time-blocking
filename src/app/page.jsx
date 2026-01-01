@@ -7,6 +7,8 @@ import { PageBackground, useBackground } from '@/components/BackgroundContext';
 import BackgroundSelector from '@/components/BackgroundSelector';
 import { useAchievements } from '@/components/AchievementsContext';
 import { AchievementPopup } from '@/components/AchievementBadge';
+import FrogCharacter, { getFrogStage, FrogEvolutionShowcase } from '@/components/FrogCharacter';
+import FocusSounds from '@/components/FocusSounds';
 
 // Categories with colors
 const CATEGORIES = {
@@ -1075,7 +1077,7 @@ export default function Frog() {
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-4xl">{timerRunning ? '🔥' : '⏸️'}</span>
+                <FrogCharacter level={level} size="md" animate={timerRunning} />
               </div>
             </div>
             
@@ -1095,6 +1097,11 @@ export default function Frog() {
               >
                 ✅
               </button>
+            </div>
+            
+            {/* Focus Sounds */}
+            <div className="mt-6">
+              <FocusSounds isPlaying={timerRunning} />
             </div>
           </div>
           
@@ -1168,8 +1175,8 @@ export default function Frog() {
             <div className="flex items-center justify-between">
               {/* Left: App Title & Status */}
               <div className="flex items-center gap-3">
-                <div className="glass-icon w-11 h-11 flex items-center justify-center">
-                  <span className="text-2xl">🐸</span>
+                <div className="glass-icon w-11 h-11 flex items-center justify-center overflow-hidden">
+                  <FrogCharacter level={level} size="sm" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -1862,6 +1869,22 @@ export default function Frog() {
                     </div>
                     <span className="text-white/40">→</span>
                   </button>
+                </div>
+                
+                {/* Frog Evolution Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Your Frog</h3>
+                  <div className="glass-card-inner p-4 bg-white/5 rounded-xl">
+                    <div className="flex items-center gap-4 mb-4">
+                      <FrogCharacter level={level} size="lg" />
+                      <div>
+                        <p className="text-white font-bold text-lg">{getFrogStage(level).name}</p>
+                        <p className="text-white/60 text-sm">Level {level}</p>
+                        <p className="text-white/40 text-xs mt-1">{getFrogStage(level).description}</p>
+                      </div>
+                    </div>
+                    <FrogEvolutionShowcase currentLevel={level} />
+                  </div>
                 </div>
                 
                 {/* Data Section */}
