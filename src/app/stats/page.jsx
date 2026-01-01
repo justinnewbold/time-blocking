@@ -7,6 +7,7 @@ import { useAchievements } from '@/components/AchievementsContext';
 import FrogCharacter, { getFrogStage, FrogEvolutionShowcase } from '@/components/FrogCharacter';
 import { Haptics } from '@/components/iOSUtils';
 import { useTheme } from '@/components/ThemeProvider';
+import SwipeableTabView from '@/components/SwipeableTabView';
 
 // Storage helper
 const Storage = {
@@ -838,6 +839,7 @@ export default function StatsPage() {
           currentPage="stats"
         />
       </div>
+      </SwipeableTabView>
     </PageBackground>
   );
 }
