@@ -210,8 +210,12 @@ export default function AchievementsPage() {
         <div className="fixed bottom-0 left-0 right-0 glass-dark safe-area-bottom z-40">
           <div className="flex justify-around py-3">
             <Link href="/" className="flex flex-col items-center text-white/40">
-              <span className="text-xl mb-1">🏠</span>
-              <span className="text-xs">Home</span>
+              <span className="text-xl mb-1">🐸</span>
+              <span className="text-xs">Tasks</span>
+            </Link>
+            <Link href="/calendar" className="flex flex-col items-center text-white/40">
+              <span className="text-xl mb-1">📅</span>
+              <span className="text-xs">Calendar</span>
             </Link>
             <Link href="/stats" className="flex flex-col items-center text-white/40">
               <span className="text-xl mb-1">📊</span>
