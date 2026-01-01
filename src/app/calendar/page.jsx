@@ -5,6 +5,7 @@ import { PageBackground } from '@/components/BackgroundContext';
 import { getCategories, DEFAULT_CATEGORIES } from '@/components/CategoryManager';
 import { Haptics } from '@/components/iOSUtils';
 import { useTheme } from '@/components/ThemeProvider';
+import SwipeableTabView from '@/components/SwipeableTabView';
 
 // Storage helper
 const Storage = {
@@ -589,6 +590,7 @@ export default function CalendarPage() {
           </div>
         </div>
       </div>
+      </SwipeableTabView>
     </PageBackground>
   );
 }
