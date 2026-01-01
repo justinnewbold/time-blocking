@@ -9,16 +9,12 @@ import { useAchievements } from '@/components/AchievementsContext';
 import { AchievementPopup } from '@/components/AchievementBadge';
 import FrogCharacter, { getFrogStage, FrogEvolutionShowcase } from '@/components/FrogCharacter';
 import FocusSounds from '@/components/FocusSounds';
+import { ReminderPicker, ScheduledRemindersList, useRestoreReminders, scheduleNotification, cancelNotification } from '@/components/ReminderManager';
+import { CategoryManagerList, useCategories, getCategories, DEFAULT_CATEGORIES } from '@/components/CategoryManager';
 
-// Categories with colors
-const CATEGORIES = {
-  'patty-shack': { name: 'Patty Shack', color: '#ef4444', emoji: '🍔' },
-  'admin': { name: 'Admin', color: '#f59e0b', emoji: '📋' },
-  'home': { name: 'Home', color: '#10b981', emoji: '🏠' },
-  'family': { name: 'Family', color: '#ec4899', emoji: '👨‍👩‍👧' },
-  'music': { name: 'Music', color: '#8b5cf6', emoji: '🎵' },
-  'personal': { name: 'Personal', color: '#06b6d4', emoji: '✨' },
-};
+// Categories - now uses dynamic categories from CategoryManager
+// Default categories are defined in CategoryManager.jsx
+// Custom categories are stored in localStorage
 
 // Energy levels
 const ENERGY_LEVELS = [
@@ -184,7 +180,17 @@ export default function Frog() {
   const [newSubtask, setNewSubtask] = useState('');
   const [userId] = useState('justin');
   
+  // Dynamic categories (default + custom)
+  const [CATEGORIES, refreshCategories] = useCategories();
+  
+  // Reminder picker state
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
+  const [reminderTask, setReminderTask] = useState(null);
+  
   const timerRef = useRef(null);
+  
+  // Restore scheduled reminders on load
+  useRestoreReminders(tasks);
   
   // Achievements hook
   const { checkAchievements, stats: achievementStats } = useAchievements();
@@ -1500,6 +1506,9 @@ export default function Frog() {
                         {task.recurrence && task.recurrence !== 'none' && (
                           <span className="text-xs text-blue-400">🔄</span>
                         )}
+                        {task.reminderTime && new Date(task.reminderTime) > new Date() && (
+                          <span className="text-xs text-yellow-400" title={`Reminder: ${new Date(task.reminderTime).toLocaleString()}`}>🔔</span>
+                        )}
                         {progress && (
                           <span className="text-green-400 text-xs">
                             {progress.completed}/{progress.total} ✓
@@ -1581,7 +1590,7 @@ export default function Frog() {
                     </div>
                   )}
                   
-                  {/* Timer Preset Buttons */}
+                  {/* Timer Preset Buttons + Reminder */}
                   <div className="flex gap-2 mt-3">
                     {TIMER_PRESETS.map((preset) => (
                       <button
@@ -1592,6 +1601,17 @@ export default function Frog() {
                         {preset.label}
                       </button>
                     ))}
+                    <button
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setReminderTask(task);
+                        setShowReminderPicker(true);
+                      }}
+                      className="glass-button px-3 py-2.5 rounded-xl text-white/60 hover:text-yellow-400 transition-colors"
+                      title="Set reminder"
+                    >
+                      🔔
+                    </button>
                   </div>
                 </div>
               );
@@ -1927,21 +1947,23 @@ export default function Frog() {
                 </div>
                 
                 {/* Reminders Section */}
+                {/* Scheduled Reminders Section */}
                 <div className="mb-6">
-                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Reminders</h3>
-                  <button
-                    onClick={() => { setShowSettings(false); setShowNotifications(true); }}
-                    className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">⏰</span>
-                      <div className="text-left">
-                        <p className="text-white font-medium">Schedule Reminders</p>
-                        <p className="text-white/40 text-xs">Set frog reminders</p>
-                      </div>
-                    </div>
-                    <span className="text-white/40">→</span>
-                  </button>
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">🔔 Scheduled Reminders</h3>
+                  <div className="glass-card-inner p-4 bg-white/5 rounded-xl">
+                    <ScheduledRemindersList tasks={tasks} />
+                    <p className="text-white/40 text-xs mt-3 text-center">
+                      Tap 🔔 on any task to schedule a reminder
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Custom Categories Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">🎨 Categories</h3>
+                  <div className="glass-card-inner p-4 bg-white/5 rounded-xl">
+                    <CategoryManagerList onCategoriesChange={refreshCategories} />
+                  </div>
                 </div>
                 
                 {/* Frog Evolution Section */}
@@ -2207,6 +2229,33 @@ export default function Frog() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reminder Picker Modal */}
+        {showReminderPicker && reminderTask && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div 
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+              onClick={() => setShowReminderPicker(false)} 
+            />
+            <div className="relative w-full max-w-sm mx-4">
+              <ReminderPicker 
+                task={reminderTask}
+                onReminderSet={(time) => {
+                  // Update task with reminder time
+                  setTasks(prev => prev.map(t => 
+                    t.id === reminderTask.id 
+                      ? { ...t, reminderTime: time }
+                      : t
+                  ));
+                }}
+                onClose={() => {
+                  setShowReminderPicker(false);
+                  setReminderTask(null);
+                }}
+              />
             </div>
           </div>
         )}
