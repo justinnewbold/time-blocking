@@ -20,6 +20,7 @@ import Confetti, { TaskCompleteCelebration, EmojiRain } from '@/components/Confe
 import { TaskCardSkeleton, TaskListSkeleton, HeaderSkeleton } from '@/components/Skeleton';
 import { TapToReorderList, useReorderableList } from '@/components/DraggableTaskList';
 import WidgetPreview from '@/components/WidgetPreview';
+import SwipeableTabView from '@/components/SwipeableTabView';
 
 // Categories - now uses dynamic categories from CategoryManager
 // Default categories are defined in CategoryManager.jsx
@@ -1388,7 +1389,8 @@ export default function Frog() {
   // ===== MAIN TASKS SCREEN =====
   return (
     <PageBackground page="home">
-      <div className="min-h-screen pb-32 safe-area-top">
+      <SwipeableTabView>
+        <div className="min-h-screen pb-32 safe-area-top">
         {/* Glass Header */}
         <div className="sticky top-0 z-40 glass-dark safe-area-top">
           <div className="px-4 py-3">
@@ -2631,6 +2633,7 @@ export default function Frog() {
         {/* Achievement Unlock Popup */}
         <AchievementPopup />
       </div>
+      </SwipeableTabView>
     </PageBackground>
   );
 }
