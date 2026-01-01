@@ -11,6 +11,10 @@ import FrogCharacter, { getFrogStage, FrogEvolutionShowcase } from '@/components
 import FocusSounds from '@/components/FocusSounds';
 import { ReminderPicker, ScheduledRemindersList, useRestoreReminders, scheduleNotification, cancelNotification } from '@/components/ReminderManager';
 import { CategoryManagerList, useCategories, getCategories, DEFAULT_CATEGORIES } from '@/components/CategoryManager';
+import { Haptics } from '@/components/iOSUtils';
+import SwipeableTask from '@/components/SwipeableTask';
+import { TaskContextMenu } from '@/components/ContextMenu';
+import PullToRefresh from '@/components/PullToRefresh';
 
 // Categories - now uses dynamic categories from CategoryManager
 // Default categories are defined in CategoryManager.jsx
@@ -186,6 +190,10 @@ export default function Frog() {
   // Reminder picker state
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [reminderTask, setReminderTask] = useState(null);
+  
+  // iOS Context Menu state
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuTask, setContextMenuTask] = useState(null);
   
   const timerRef = useRef(null);
   
@@ -756,6 +764,51 @@ export default function Frog() {
     Storage.set('xp', newXP);
     Storage.set('level', Math.floor(newXP / 100) + 1);
   }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements]);
+
+  // Delete a task
+  const handleDeleteTask = useCallback((taskId) => {
+    Haptics.impact('heavy');
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+    
+    // Remove from subtasks
+    setSubtasks(prev => {
+      const newSubtasks = { ...prev };
+      delete newSubtasks[taskId];
+      return newSubtasks;
+    });
+    
+    // Update storage
+    const savedTasks = Storage.get('tasks', []);
+    Storage.set('tasks', savedTasks.filter(t => t.id !== taskId));
+    
+    // Cancel any scheduled reminders
+    const scheduledReminders = Storage.get('scheduledReminders', {});
+    if (scheduledReminders[taskId]) {
+      delete scheduledReminders[taskId];
+      Storage.set('scheduledReminders', scheduledReminders);
+    }
+  }, []);
+
+  // Toggle frog status on a task
+  const handleToggleFrog = useCallback((task) => {
+    Haptics.medium();
+    setTasks(prev => prev.map(t => 
+      t.id === task.id ? { ...t, frog: !t.frog } : t
+    ));
+    
+    // Update storage
+    const savedTasks = Storage.get('tasks', []);
+    Storage.set('tasks', savedTasks.map(t => 
+      t.id === task.id ? { ...t, frog: !t.frog } : t
+    ));
+    
+    // Update daily frog
+    if (!task.frog) {
+      setDailyFrog(task.id);
+    } else if (dailyFrog === task.id) {
+      setDailyFrog(null);
+    }
+  }, [dailyFrog]);
 
   const cancelFocus = () => {
     setTimerRunning(false);
@@ -1460,7 +1513,7 @@ export default function Frog() {
         )}
 
         {/* Tasks List */}
-        <div className="px-4 mt-4 space-y-3">
+        <div className="px-4 mt-4 space-y-3 ios-scroll">
           {sortedTasks.length === 0 ? (
             <div className="glass-card p-8 text-center">
               <div className="text-5xl mb-4">✨</div>
@@ -1474,16 +1527,35 @@ export default function Frog() {
               const taskSubtasks = subtasks[task.id] || [];
               
               return (
-                <div 
+                <SwipeableTask
                   key={task.id}
-                  className="glass-card p-4 animate-slide-up"
-                  style={{ animationDelay: `${idx * 50}ms` }}
+                  task={task}
+                  category={CATEGORIES[task.category]}
+                  onSwipeRight={() => {
+                    Haptics.success();
+                    handleCompleteTask(task);
+                  }}
+                  onSwipeLeft={() => {
+                    Haptics.impact('heavy');
+                    handleDeleteTask(task.id);
+                  }}
+                  onLongPress={() => {
+                    setContextMenuTask(task);
+                    setShowContextMenu(true);
+                  }}
                 >
-                  {/* Task Header - Click to expand */}
                   <div 
-                    className="flex items-center gap-3 cursor-pointer"
-                    onClick={() => setExpandedTask(isExpanded ? null : task.id)}
+                    className="glass-card p-4 animate-slide-up ios-tap"
+                    style={{ animationDelay: `${idx * 50}ms` }}
                   >
+                    {/* Task Header - Click to expand */}
+                    <div 
+                      className="flex items-center gap-3 cursor-pointer"
+                      onClick={() => {
+                        Haptics.light();
+                        setExpandedTask(isExpanded ? null : task.id);
+                      }}
+                    >
                     <div className="glass-icon-sm w-11 h-11 flex items-center justify-center">
                       <span className="text-xl">{CATEGORIES[task.category]?.emoji}</span>
                     </div>
@@ -1538,7 +1610,7 @@ export default function Frog() {
                       {taskSubtasks.map((subtask) => (
                         <div 
                           key={subtask.id}
-                          onClick={() => toggleSubtask(task.id, subtask.id)}
+                          onClick={() => { Haptics.selection(); toggleSubtask(task.id, subtask.id); }}
                           className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
                             subtask.completed 
                               ? 'bg-green-500/20 border border-green-500/30' 
@@ -1595,8 +1667,8 @@ export default function Frog() {
                     {TIMER_PRESETS.map((preset) => (
                       <button
                         key={preset.minutes}
-                        onClick={(e) => { e.stopPropagation(); startFocus(task, preset.minutes); }}
-                        className="flex-1 glass-button py-2.5 rounded-xl text-white/80 text-sm font-medium hover:text-white transition-colors"
+                        onClick={(e) => { e.stopPropagation(); Haptics.medium(); startFocus(task, preset.minutes); }}
+                        className="flex-1 glass-button py-2.5 rounded-xl text-white/80 text-sm font-medium hover:text-white transition-colors ios-button"
                       >
                         {preset.label}
                       </button>
@@ -1604,6 +1676,7 @@ export default function Frog() {
                     <button
                       onClick={(e) => { 
                         e.stopPropagation(); 
+                        Haptics.light();
                         setReminderTask(task);
                         setShowReminderPicker(true);
                       }}
@@ -1613,7 +1686,8 @@ export default function Frog() {
                       🔔
                     </button>
                   </div>
-                </div>
+                  </div>
+                </SwipeableTask>
               );
             })
           )}
@@ -1622,13 +1696,13 @@ export default function Frog() {
         {/* Floating Action Buttons */}
         <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-30">
           <button
-            onClick={() => setShowAddTask(true)}
+            onClick={() => { Haptics.medium(); setShowAddTask(true); }}
             className="glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform"
           >
             ➕
           </button>
           <button
-            onClick={resetDay}
+            onClick={() => { Haptics.light(); resetDay(); }}
             className="glass-icon-sm w-12 h-12 flex items-center justify-center text-xl opacity-60 hover:opacity-100 transition-opacity"
           >
             🔄
@@ -1657,7 +1731,7 @@ export default function Frog() {
               <span className="text-xs">Stats</span>
             </Link>
             <button 
-              onClick={() => setShowSettings(true)}
+              onClick={() => { Haptics.light(); setShowSettings(true); }}
               className="flex flex-col items-center text-white/50 hover:text-white/80 transition-colors"
             >
               <div className="glass-icon-sm w-10 h-10 flex items-center justify-center mb-1 opacity-60">
@@ -2259,6 +2333,29 @@ export default function Frog() {
             </div>
           </div>
         )}
+
+        {/* iOS Context Menu */}
+        <TaskContextMenu
+          isOpen={showContextMenu}
+          onClose={() => {
+            setShowContextMenu(false);
+            setContextMenuTask(null);
+          }}
+          task={contextMenuTask}
+          onComplete={() => contextMenuTask && handleCompleteTask(contextMenuTask)}
+          onDelete={() => contextMenuTask && handleDeleteTask(contextMenuTask.id)}
+          onSetReminder={() => {
+            if (contextMenuTask) {
+              setReminderTask(contextMenuTask);
+              setShowReminderPicker(true);
+            }
+          }}
+          onSetFrog={() => contextMenuTask && handleToggleFrog(contextMenuTask)}
+          onEdit={() => {
+            // Future: Add edit functionality
+            Haptics.light();
+          }}
+        />
 
         {/* Celebration Overlay */}
         {showCelebration && (
