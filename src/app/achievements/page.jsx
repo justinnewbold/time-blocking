@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { PageBackground } from '@/components/BackgroundContext';
 import BackgroundSelector from '@/components/BackgroundSelector';
 import { useAchievements, ACHIEVEMENTS } from '@/components/AchievementsContext';
+import { Haptics } from '@/components/iOSUtils';
+import { useTheme } from '@/components/ThemeProvider';
 
 const ACHIEVEMENT_CATEGORIES = {
   tasks: { name: 'Tasks', emoji: '✅', description: 'Complete tasks to unlock' },
@@ -17,6 +19,7 @@ const ACHIEVEMENT_CATEGORIES = {
 };
 
 export default function AchievementsPage() {
+  const { isDark } = useTheme();
   const [showBackgroundSelector, setShowBackgroundSelector] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const { unlockedAchievements, stats, getProgress } = useAchievements();
