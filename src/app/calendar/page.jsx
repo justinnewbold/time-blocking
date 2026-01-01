@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PageBackground } from '@/components/BackgroundContext';
+import { getCategories, DEFAULT_CATEGORIES } from '@/components/CategoryManager';
 
 // Storage helper
 const Storage = {
@@ -14,15 +15,7 @@ const Storage = {
   }
 };
 
-// Categories
-const CATEGORIES = {
-  'patty-shack': { name: 'Patty Shack', color: '#ef4444', emoji: '🍔' },
-  'admin': { name: 'Admin', color: '#f59e0b', emoji: '📋' },
-  'home': { name: 'Home', color: '#10b981', emoji: '🏠' },
-  'family': { name: 'Family', color: '#ec4899', emoji: '👨‍👩‍👧' },
-  'music': { name: 'Music', color: '#8b5cf6', emoji: '🎵' },
-  'personal': { name: 'Personal', color: '#06b6d4', emoji: '✨' },
-};
+// Categories are now loaded dynamically via useCategories hook
 
 // Recurrence types
 const RECURRENCE_LABELS = {
@@ -53,7 +46,7 @@ function formatTime(minutes) {
 }
 
 // Day Cell Component
-function DayCell({ date, tasks, isToday, isCurrentMonth, onClick }) {
+function DayCell({ date, tasks, categories, isToday, isCurrentMonth, onClick }) {
   const dayTasks = tasks.filter(t => {
     if (!t.dueDate) return false;
     const taskDate = new Date(t.dueDate);
@@ -87,7 +80,7 @@ function DayCell({ date, tasks, isToday, isCurrentMonth, onClick }) {
             <div
               key={i}
               className="w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: CATEGORIES[task.category]?.color || '#888' }}
+              style={{ backgroundColor: categories[task.category]?.color || '#888' }}
             />
           ))}
           {completedToday.slice(0, 3 - dayTasks.length).map((_, i) => (
@@ -108,7 +101,7 @@ function DayCell({ date, tasks, isToday, isCurrentMonth, onClick }) {
 }
 
 // Week View Component
-function WeekView({ tasks, selectedDate, onDateSelect }) {
+function WeekView({ tasks, categories, selectedDate, onDateSelect }) {
   const startOfWeek = new Date(selectedDate);
   startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
   
@@ -181,8 +174,8 @@ function WeekView({ tasks, selectedDate, onDateSelect }) {
                       key={i}
                       className="text-[10px] p-1 rounded mb-0.5 truncate"
                       style={{ 
-                        backgroundColor: `${CATEGORIES[task.category]?.color}30`,
-                        borderLeft: `2px solid ${CATEGORIES[task.category]?.color}`
+                        backgroundColor: `${categories[task.category]?.color}30`,
+                        borderLeft: `2px solid ${categories[task.category]?.color}`
                       }}
                     >
                       {task.title}
@@ -199,7 +192,7 @@ function WeekView({ tasks, selectedDate, onDateSelect }) {
 }
 
 // Day Detail Modal
-function DayDetailModal({ date, tasks, completedTasks, onClose }) {
+function DayDetailModal({ date, tasks, categories, completedTasks, onClose }) {
   const dayTasks = tasks.filter(t => {
     if (!t.dueDate) return false;
     const taskDate = new Date(t.dueDate);
@@ -252,9 +245,9 @@ function DayDetailModal({ date, tasks, completedTasks, onClose }) {
                   <div 
                     key={i}
                     className="glass-card-inner p-3 flex items-center gap-3"
-                    style={{ borderLeft: `3px solid ${CATEGORIES[task.category]?.color}` }}
+                    style={{ borderLeft: `3px solid ${categories[task.category]?.color}` }}
                   >
-                    <span className="text-lg">{CATEGORIES[task.category]?.emoji}</span>
+                    <span className="text-lg">{categories[task.category]?.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-medium truncate">{task.title}</p>
                       <div className="flex items-center gap-2 text-xs text-white/40">
@@ -323,11 +316,17 @@ function DayDetailModal({ date, tasks, completedTasks, onClose }) {
 }
 
 export default function CalendarPage() {
+  const [CATEGORIES, setCategories] = useState(DEFAULT_CATEGORIES);
   const [viewMode, setViewMode] = useState('month'); // month | week
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [completedTasks, setCompletedTasks] = useState([]);
+
+  // Load categories
+  useEffect(() => {
+    setCategories(getCategories());
+  }, []);
 
   // Load tasks
   useEffect(() => {
@@ -492,6 +491,7 @@ export default function CalendarPage() {
                       key={i}
                       date={day.date}
                       tasks={tasks}
+                      categories={CATEGORIES}
                       isToday={day.date.toDateString() === today.toDateString()}
                       isCurrentMonth={day.isCurrentMonth}
                       onClick={setSelectedDate}
@@ -501,7 +501,8 @@ export default function CalendarPage() {
               </>
             ) : (
               <WeekView 
-                tasks={tasks} 
+                tasks={tasks}
+                categories={CATEGORIES}
                 selectedDate={currentDate}
                 onDateSelect={setSelectedDate}
               />
@@ -557,6 +558,7 @@ export default function CalendarPage() {
           <DayDetailModal
             date={selectedDate}
             tasks={tasks}
+            categories={CATEGORIES}
             completedTasks={completedTasks}
             onClose={() => setSelectedDate(null)}
           />
