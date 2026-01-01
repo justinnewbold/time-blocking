@@ -16,6 +16,10 @@ import SwipeableTask from '@/components/SwipeableTask';
 import { TaskContextMenu } from '@/components/ContextMenu';
 import PullToRefresh from '@/components/PullToRefresh';
 import { useTheme, ThemeSelector, ThemeToggle } from '@/components/ThemeProvider';
+import Confetti, { TaskCompleteCelebration, EmojiRain } from '@/components/Confetti';
+import { TaskCardSkeleton, TaskListSkeleton, HeaderSkeleton } from '@/components/Skeleton';
+import { TapToReorderList, useReorderableList } from '@/components/DraggableTaskList';
+import WidgetPreview from '@/components/WidgetPreview';
 
 // Categories - now uses dynamic categories from CategoryManager
 // Default categories are defined in CategoryManager.jsx
@@ -199,6 +203,16 @@ export default function Frog() {
   
   // Pull to refresh state
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Confetti and celebration state
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [confettiFrog, setConfettiFrog] = useState(false);
+  
+  // Widget modal state
+  const [showWidgetModal, setShowWidgetModal] = useState(false);
+  
+  // Reorder mode state
+  const [reorderMode, setReorderMode] = useState(false);
   
   const timerRef = useRef(null);
   
@@ -762,6 +776,10 @@ export default function Frog() {
     setShowCelebration(true);
     setTimeout(() => setShowCelebration(false), 2000);
     
+    // Trigger confetti celebration
+    setConfettiFrog(task.frog);
+    setShowConfetti(true);
+    
     setFocusTask(null);
     setTimerStartTime(null);
     setScreen('tasks');
@@ -814,6 +832,23 @@ export default function Frog() {
       setDailyFrog(null);
     }
   }, [dailyFrog]);
+
+  // Reorder tasks handler
+  const handleReorderTasks = useCallback((fromIndex, toIndex) => {
+    Haptics.medium();
+    setTasks(prev => {
+      const newTasks = [...prev];
+      const [removed] = newTasks.splice(fromIndex, 1);
+      newTasks.splice(toIndex, 0, removed);
+      
+      // Save new order
+      Storage.set('tasks', newTasks);
+      Storage.set('task_order', newTasks.map(t => t.id));
+      
+      return newTasks;
+    });
+    setReorderMode(false);
+  }, []);
 
   // Pull to refresh handler
   const handleRefresh = useCallback(async () => {
@@ -1054,12 +1089,21 @@ export default function Frog() {
   if (!isLoaded) {
     return (
       <PageBackground page="home">
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-7xl mb-6 animate-float">🐸</div>
-            <div className="glass-card px-8 py-4">
-              <p className="text-white/80 font-medium">Loading your frogs...</p>
-            </div>
+        <div className="min-h-screen safe-area-top">
+          {/* Skeleton Header */}
+          <div className="sticky top-0 z-40 glass-dark safe-area-top">
+            <HeaderSkeleton />
+          </div>
+          
+          {/* Skeleton Task List */}
+          <div className="px-4 mt-4">
+            <TaskListSkeleton count={5} />
+          </div>
+          
+          {/* Loading indicator */}
+          <div className="fixed bottom-32 left-1/2 -translate-x-1/2 glass-card px-6 py-3 flex items-center gap-3">
+            <div className="text-2xl animate-bounce">🐸</div>
+            <p className="text-white/80 text-sm">Loading your frogs...</p>
           </div>
         </div>
       </PageBackground>
@@ -1581,13 +1625,53 @@ export default function Frog() {
             </div>
           )}
           
-          <div className="px-4 space-y-3 ios-scroll pb-32">
+          <div className={`px-4 space-y-3 ios-scroll pb-32 ${reorderMode ? 'pt-16' : ''}`}>
             {sortedTasks.length === 0 ? (
-            <div className="glass-card p-8 text-center">
+            <div className="glass-card p-8 text-center float-animation">
               <div className="text-5xl mb-4">✨</div>
               <p className="text-white font-medium mb-2">All caught up!</p>
               <p className="text-white/50 text-sm">Add a new task to get started</p>
             </div>
+          ) : reorderMode ? (
+            <TapToReorderList 
+              items={sortedTasks}
+              onReorder={handleReorderTasks}
+            >
+              {sortedTasks.map((task, idx) => {
+                const progress = getSubtaskProgress(task.id);
+                const taskSubtasks = subtasks[task.id] || [];
+                
+                return (
+                  <div 
+                    key={task.id}
+                    className="glass-card p-4 stagger-item"
+                    style={{ animationDelay: `${idx * 60}ms` }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="glass-icon-sm w-11 h-11 flex items-center justify-center">
+                        <span className="text-xl">{CATEGORIES[task.category]?.emoji}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate">{task.title}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span 
+                            className="text-xs px-2 py-0.5 rounded-full"
+                            style={{ 
+                              backgroundColor: CATEGORIES[task.category]?.color + '20',
+                              color: CATEGORIES[task.category]?.color 
+                            }}
+                          >
+                            {CATEGORIES[task.category]?.name}
+                          </span>
+                          {task.frog && <span className="text-sm">🐸</span>}
+                        </div>
+                      </div>
+                      <span className="text-white/40 text-2xl">↕</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </TapToReorderList>
           ) : (
             sortedTasks.map((task, idx) => {
               const progress = getSubtaskProgress(task.id);
@@ -2097,6 +2181,45 @@ export default function Frog() {
                   </button>
                 </div>
                 
+                {/* Task Management Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Task Management</h3>
+                  <div className="space-y-3">
+                    {/* Reorder Tasks */}
+                    <button
+                      onClick={() => { setShowSettings(false); setReorderMode(true); Haptics.medium(); }}
+                      className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors ios-button"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🔀</span>
+                        <div className="text-left">
+                          <p className="text-white font-medium">Reorder Tasks</p>
+                          <p className="text-white/40 text-xs">Tap to change task order</p>
+                        </div>
+                      </div>
+                      <span className="text-white/40">→</span>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* iOS Widget Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">iOS Widget</h3>
+                  <button
+                    onClick={() => { setShowSettings(false); setShowWidgetModal(true); }}
+                    className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors ios-button"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">📱</span>
+                      <div className="text-left">
+                        <p className="text-white font-medium">Add Home Screen Widget</p>
+                        <p className="text-white/40 text-xs">See your frog at a glance</p>
+                      </div>
+                    </div>
+                    <span className="text-white/40">→</span>
+                  </button>
+                </div>
+                
                 {/* Reminders Section */}
                 {/* Scheduled Reminders Section */}
                 <div className="mb-6">
@@ -2443,6 +2566,49 @@ export default function Frog() {
                 <p className="text-white font-bold text-xl">Task Complete!</p>
                 <p className="text-green-400">+{focusTask?.difficulty * 10 + (focusTask?.frog ? 20 : 0)} XP</p>
               </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Confetti Celebration */}
+        <TaskCompleteCelebration 
+          active={showConfetti}
+          isFrog={confettiFrog}
+          onComplete={() => setShowConfetti(false)}
+        />
+        
+        {/* Widget Preview Modal */}
+        {showWidgetModal && (
+          <WidgetPreview
+            frog={dailyFrog}
+            stats={{
+              level,
+              xp,
+              tasksRemaining: tasks.length,
+              tasksCompleted: completedTasks.length,
+              streak
+            }}
+            onClose={() => setShowWidgetModal(false)}
+          />
+        )}
+        
+        {/* Reorder Mode Overlay */}
+        {reorderMode && (
+          <div className="fixed top-0 left-0 right-0 z-50 glass-dark safe-area-top">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={() => { Haptics.light(); setReorderMode(false); }}
+                className="glass-button px-4 py-2 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+              <p className="text-white font-medium">Tap to Reorder</p>
+              <button
+                onClick={() => { Haptics.success(); setReorderMode(false); }}
+                className="glass-button px-4 py-2 rounded-lg text-sm bg-green-500/20 text-green-400"
+              >
+                Done
+              </button>
             </div>
           </div>
         )}
