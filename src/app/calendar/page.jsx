@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PageBackground } from '@/components/BackgroundContext';
 import { getCategories, DEFAULT_CATEGORIES } from '@/components/CategoryManager';
+import { Haptics } from '@/components/iOSUtils';
+import { useTheme } from '@/components/ThemeProvider';
 
 // Storage helper
 const Storage = {
@@ -316,6 +318,7 @@ function DayDetailModal({ date, tasks, categories, completedTasks, onClose }) {
 }
 
 export default function CalendarPage() {
+  const { isDark } = useTheme();
   const [CATEGORIES, setCategories] = useState(DEFAULT_CATEGORIES);
   const [viewMode, setViewMode] = useState('month'); // month | week
   const [currentDate, setCurrentDate] = useState(new Date());
