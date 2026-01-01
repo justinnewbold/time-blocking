@@ -3,6 +3,7 @@ import InstallPrompt from '@/components/InstallPrompt'
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 import { BackgroundProvider } from '@/components/BackgroundContext'
 import { AchievementsProvider } from '@/components/AchievementsContext'
+import { ThemeProvider } from '@/components/ThemeProvider'
 
 export const metadata = {
   title: 'Frog 🐸',
@@ -25,14 +26,14 @@ export const viewport = {
   userScalable: false,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#22c55e' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' }
+    { media: '(prefers-color-scheme: light)', color: '#f5f5f7' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' }
   ]
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark-mode">
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -60,13 +61,15 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body className="text-white antialiased overscroll-none selection:bg-green-500/30">
-        <BackgroundProvider>
-          <AchievementsProvider>
-            <ServiceWorkerRegister />
-            {children}
-            <InstallPrompt />
-          </AchievementsProvider>
-        </BackgroundProvider>
+        <ThemeProvider>
+          <BackgroundProvider>
+            <AchievementsProvider>
+              <ServiceWorkerRegister />
+              {children}
+              <InstallPrompt />
+            </AchievementsProvider>
+          </BackgroundProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
