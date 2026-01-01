@@ -15,6 +15,7 @@ import { Haptics } from '@/components/iOSUtils';
 import SwipeableTask from '@/components/SwipeableTask';
 import { TaskContextMenu } from '@/components/ContextMenu';
 import PullToRefresh from '@/components/PullToRefresh';
+import { useTheme, ThemeSelector, ThemeToggle } from '@/components/ThemeProvider';
 
 // Categories - now uses dynamic categories from CategoryManager
 // Default categories are defined in CategoryManager.jsx
@@ -186,6 +187,7 @@ export default function Frog() {
   
   // Dynamic categories (default + custom)
   const [CATEGORIES, refreshCategories] = useCategories();
+  const { isDark, toggleTheme } = useTheme();
   
   // Reminder picker state
   const [showReminderPicker, setShowReminderPicker] = useState(false);
@@ -194,6 +196,9 @@ export default function Frog() {
   // iOS Context Menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuTask, setContextMenuTask] = useState(null);
+  
+  // Pull to refresh state
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const timerRef = useRef(null);
   
@@ -810,6 +815,54 @@ export default function Frog() {
     }
   }, [dailyFrog]);
 
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    Haptics.medium();
+    
+    try {
+      // Reload tasks from Supabase
+      if (userId) {
+        const dbTasks = await getTasks(userId);
+        if (dbTasks && dbTasks.length > 0) {
+          const formattedTasks = dbTasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            category: t.category || 'personal',
+            difficulty: t.difficulty || t.energy_required || 2,
+            estimatedMinutes: t.estimated_minutes || 25,
+            frog: t.is_frog || false,
+            completed: t.completed || false,
+            dueDate: t.due_date,
+            recurrence: t.recurrence || 'none'
+          })).filter(t => !t.completed);
+          setTasks(formattedTasks);
+          Storage.set('tasks', formattedTasks);
+        }
+        
+        // Reload user progress
+        const progress = await getUserProgress(userId);
+        if (progress) {
+          setXp(progress.total_xp || 0);
+          setLevel(progress.level || 1);
+        }
+      }
+      
+      // Refresh categories
+      refreshCategories();
+      
+      // Small delay for visual feedback
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      Haptics.success();
+    } catch (error) {
+      console.error('Refresh error:', error);
+      Haptics.error();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [userId, refreshCategories]);
+
   const cancelFocus = () => {
     setTimerRunning(false);
     setFocusTask(null);
@@ -1335,6 +1388,13 @@ export default function Frog() {
               
               {/* Right: Action Buttons */}
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { Haptics.light(); toggleTheme(); }}
+                  className="glass-icon-sm w-9 h-9 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity ios-button"
+                  title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                >
+                  <span className="text-lg">{isDark ? '☀️' : '🌙'}</span>
+                </button>
                 <GlassIconButton icon="🎨" onClick={() => setShowBackgroundSelector(true)} size="sm" />
                 <GlassIconButton icon="🔔" onClick={() => setShowNotifications(true)} size="sm" />
                 <Link href="/stats">
@@ -1512,9 +1572,17 @@ export default function Frog() {
           </div>
         )}
 
-        {/* Tasks List */}
-        <div className="px-4 mt-4 space-y-3 ios-scroll">
-          {sortedTasks.length === 0 ? (
+        {/* Tasks List with Pull to Refresh */}
+        <PullToRefresh onRefresh={handleRefresh} className="mt-4">
+          {/* Refresh indicator */}
+          {isRefreshing && (
+            <div className="flex justify-center py-4">
+              <div className="refresh-spinner" />
+            </div>
+          )}
+          
+          <div className="px-4 space-y-3 ios-scroll pb-32">
+            {sortedTasks.length === 0 ? (
             <div className="glass-card p-8 text-center">
               <div className="text-5xl mb-4">✨</div>
               <p className="text-white font-medium mb-2">All caught up!</p>
@@ -1545,8 +1613,8 @@ export default function Frog() {
                   }}
                 >
                   <div 
-                    className="glass-card p-4 animate-slide-up ios-tap"
-                    style={{ animationDelay: `${idx * 50}ms` }}
+                    className="glass-card p-4 stagger-item ios-tap"
+                    style={{ animationDelay: `${idx * 60}ms` }}
                   >
                     {/* Task Header - Click to expand */}
                     <div 
@@ -1691,7 +1759,8 @@ export default function Frog() {
               );
             })
           )}
-        </div>
+          </div>
+        </PullToRefresh>
 
         {/* Floating Action Buttons */}
         <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-30">
@@ -2005,9 +2074,17 @@ export default function Frog() {
                 {/* Appearance Section */}
                 <div className="mb-6">
                   <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Appearance</h3>
+                  
+                  {/* Theme Selection */}
+                  <div className="mb-3">
+                    <p className="text-white font-medium mb-2 text-sm">Theme Mode</p>
+                    <ThemeSelector />
+                  </div>
+                  
+                  {/* Background Theme */}
                   <button
                     onClick={() => { setShowSettings(false); setShowBackgroundSelector(true); }}
-                    className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
+                    className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors ios-button"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-xl">🎨</span>
