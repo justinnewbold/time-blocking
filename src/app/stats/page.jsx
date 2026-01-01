@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { PageBackground } from '@/components/BackgroundContext';
 import BackgroundSelector from '@/components/BackgroundSelector';
 import { useAchievements } from '@/components/AchievementsContext';
+import FrogCharacter, { getFrogStage, FrogEvolutionShowcase } from '@/components/FrogCharacter';
 
 // Storage helper
 const Storage = {
@@ -691,11 +692,15 @@ export default function StatsPage() {
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Level Card */}
+          {/* Your Frog Card */}
           <div className="glass-card p-6 text-center bg-gradient-to-br from-green-500/20 to-emerald-500/10">
-            <div className="text-5xl mb-2">🐸</div>
+            <div className="flex justify-center mb-2">
+              <FrogCharacter level={level} size="xl" />
+            </div>
+            <p className="text-green-400 font-medium">{getFrogStage(level).name}</p>
             <h2 className="text-white text-3xl font-bold">Level {level}</h2>
-            <div className="mt-3 h-3 bg-white/10 rounded-full overflow-hidden max-w-xs mx-auto">
+            <p className="text-white/40 text-xs mb-3">{getFrogStage(level).description}</p>
+            <div className="h-3 bg-white/10 rounded-full overflow-hidden max-w-xs mx-auto">
               <div 
                 className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all"
                 style={{ width: `${xp % 100}%` }}
@@ -703,6 +708,11 @@ export default function StatsPage() {
             </div>
             <p className="text-white/60 text-sm mt-2">{xp % 100}/100 XP to next level</p>
             <p className="text-green-400 text-sm mt-1">{xp} total XP</p>
+          </div>
+          
+          {/* Frog Evolution */}
+          <div className="glass-card p-4">
+            <FrogEvolutionShowcase currentLevel={level} />
           </div>
 
           {/* Main Stats Grid */}
