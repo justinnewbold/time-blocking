@@ -40,12 +40,21 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Frog" />
         <meta name="msapplication-TileColor" content="#22c55e" />
+        <meta name="msapplication-TileImage" content="/icons/icon-144.png" />
         
-        <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/icons/icon.svg" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon.svg" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon.svg" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon.svg" />
+        {/* Favicon */}
+        <link rel="icon" type="image/x-icon" href="/icons/favicon.ico" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-72.png" />
+        <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96.png" />
+        
+        {/* Apple Touch Icons */}
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-152.png" />
+        
+        {/* Splash screens for iOS */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
