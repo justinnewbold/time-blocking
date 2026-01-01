@@ -5,6 +5,8 @@ import { PageBackground } from '@/components/BackgroundContext';
 import BackgroundSelector from '@/components/BackgroundSelector';
 import { useAchievements } from '@/components/AchievementsContext';
 import FrogCharacter, { getFrogStage, FrogEvolutionShowcase } from '@/components/FrogCharacter';
+import { Haptics } from '@/components/iOSUtils';
+import { useTheme } from '@/components/ThemeProvider';
 
 // Storage helper
 const Storage = {
@@ -588,6 +590,7 @@ const WeeklyCalendar = ({ completedDates }) => {
 };
 
 export default function StatsPage() {
+  const { isDark } = useTheme();
   const [showBackgroundSelector, setShowBackgroundSelector] = useState(false);
   const [timeEstimates, setTimeEstimates] = useState({});
   const [completedTasks, setCompletedTasks] = useState([]);
