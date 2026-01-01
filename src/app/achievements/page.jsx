@@ -6,6 +6,7 @@ import BackgroundSelector from '@/components/BackgroundSelector';
 import { useAchievements, ACHIEVEMENTS } from '@/components/AchievementsContext';
 import { Haptics } from '@/components/iOSUtils';
 import { useTheme } from '@/components/ThemeProvider';
+import SwipeableTabView from '@/components/SwipeableTabView';
 
 const ACHIEVEMENT_CATEGORIES = {
   tasks: { name: 'Tasks', emoji: '✅', description: 'Complete tasks to unlock' },
@@ -237,6 +238,7 @@ export default function AchievementsPage() {
           currentPage="stats"
         />
       </div>
+      </SwipeableTabView>
     </PageBackground>
   );
 }
