@@ -35,6 +35,45 @@ const TIMER_PRESETS = [
   { minutes: 25, label: '25m', description: 'Pomodoro' },
   { minutes: 45, label: '45m', description: 'Deep work' },
 ];
+// Calculate next due date for recurring tasks
+const getNextDueDate = (currentDate, recurrence) => {
+  const date = new Date(currentDate || new Date());
+  switch (recurrence) {
+    case 'daily':
+      date.setDate(date.getDate() + 1);
+      break;
+    case 'weekdays':
+      date.setDate(date.getDate() + 1);
+      while (date.getDay() === 0 || date.getDay() === 6) {
+        date.setDate(date.getDate() + 1);
+      }
+      break;
+    case 'weekly':
+      date.setDate(date.getDate() + 7);
+      break;
+    case 'biweekly':
+      date.setDate(date.getDate() + 14);
+      break;
+    case 'monthly':
+      date.setMonth(date.getMonth() + 1);
+      break;
+    default:
+      return null;
+  }
+  return date.toISOString();
+};
+
+// Recurrence labels for display
+const RECURRENCE_LABELS = {
+  none: 'Once',
+  daily: 'Daily',
+  weekdays: 'Weekdays',
+  weekly: 'Weekly',
+  biweekly: 'Bi-weekly',
+  monthly: 'Monthly'
+};
+
+
 
 // Local storage helper (fallback)
 const Storage = {
@@ -114,7 +153,7 @@ export default function Frog() {
   const [frogCompleted, setFrogCompleted] = useState(false);
   const [dailyFrog, setDailyFrog] = useState(null);
   const [showAddTask, setShowAddTask] = useState(false);
-  const [newTask, setNewTask] = useState({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25 });
+  const [newTask, setNewTask] = useState({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25, recurrence: 'none', dueDate: null });
   const [timerStartTime, setTimerStartTime] = useState(null);
   const [timeEstimates, setTimeEstimates] = useState({}); // { taskId: { estimated, actual, completed_at } }
   const [isLoaded, setIsLoaded] = useState(false);
@@ -670,8 +709,31 @@ export default function Frog() {
     const newXP = xp + earnedXP;
     setLevel(Math.floor(newXP / 100) + 1);
     
+    // Handle recurring tasks - create next instance
+    if (task.recurrence && task.recurrence !== 'none') {
+      const nextDueDate = getNextDueDate(task.dueDate, task.recurrence);
+      if (nextDueDate) {
+        const recurringTask = {
+          id: Date.now(),
+          title: task.title,
+          category: task.category,
+          difficulty: task.difficulty,
+          estimatedMinutes: task.estimatedMinutes,
+          recurrence: task.recurrence,
+          dueDate: nextDueDate,
+          frog: false,
+          subtasks: task.subtasks ? task.subtasks.map(st => ({ ...st, completed: false })) : []
+        };
+        setTasks(prev => [...prev, recurringTask]);
+        
+        // Update local storage
+        const savedTasks = Storage.get('tasks', []);
+        Storage.set('tasks', [...savedTasks.filter(t => t.id !== task.id), recurringTask]);
+      }
+    }
+    
     setTasks(prev => prev.filter(t => t.id !== task.id));
-    setCompletedTasks(prev => [...prev, { ...task, completed: true, timeData }]);
+    setCompletedTasks(prev => [...prev, { ...task, completed: true, completedAt: new Date().toISOString(), timeData, earnedXP }]);
     
     if (task.frog) {
       setFrogCompleted(true);
@@ -740,12 +802,14 @@ export default function Frog() {
         category: newTask.category,
         difficulty: newTask.difficulty,
         estimatedMinutes: newTask.estimatedMinutes,
+        recurrence: newTask.recurrence,
+        dueDate: newTask.dueDate || new Date().toISOString(),
         frog: false
       };
       setTasks(prev => [...prev, localTask]);
     }
     
-    setNewTask({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25 });
+    setNewTask({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25, recurrence: 'none', dueDate: null });
     setShowAddTask(false);
   };
 
@@ -1433,6 +1497,9 @@ export default function Frog() {
                           {'⭐'.repeat(task.difficulty)}
                         </span>
                         {task.frog && <span className="text-sm">🐸</span>}
+                        {task.recurrence && task.recurrence !== 'none' && (
+                          <span className="text-xs text-blue-400">🔄</span>
+                        )}
                         {progress && (
                           <span className="text-green-400 text-xs">
                             {progress.completed}/{progress.total} ✓
@@ -1557,6 +1624,12 @@ export default function Frog() {
               </div>
               <span className="text-xs font-medium">Tasks</span>
             </div>
+            <Link href="/calendar" className="flex flex-col items-center text-white/50 hover:text-white/80 transition-colors">
+              <div className="glass-icon-sm w-10 h-10 flex items-center justify-center mb-1 opacity-60">
+                <span className="text-xl">📅</span>
+              </div>
+              <span className="text-xs">Calendar</span>
+            </Link>
             <Link href="/stats" className="flex flex-col items-center text-white/50 hover:text-white/80 transition-colors">
               <div className="glass-icon-sm w-10 h-10 flex items-center justify-center mb-1 opacity-60">
                 <span className="text-xl">📊</span>
@@ -2085,12 +2158,52 @@ export default function Frog() {
                     </div>
                   </div>
                   
+                  {/* Recurrence */}
+                  <div>
+                    <label className="text-white/60 text-sm mb-2 block">Repeat</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: 'none', label: 'Once', emoji: '1️⃣' },
+                        { value: 'daily', label: 'Daily', emoji: '📆' },
+                        { value: 'weekdays', label: 'Weekdays', emoji: '💼' },
+                        { value: 'weekly', label: 'Weekly', emoji: '📅' },
+                        { value: 'biweekly', label: 'Bi-weekly', emoji: '🔄' },
+                        { value: 'monthly', label: 'Monthly', emoji: '🗓️' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setNewTask(prev => ({ ...prev, recurrence: opt.value }))}
+                          className={`glass-button p-2 rounded-xl flex flex-col items-center gap-1 transition-all ${
+                            newTask.recurrence === opt.value ? 'ring-2 ring-purple-400/50 bg-purple-400/10' : ''
+                          }`}
+                        >
+                          <span className="text-lg">{opt.emoji}</span>
+                          <span className="text-[10px] text-white/70">{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Due Date (only show for non-recurring or first occurrence) */}
+                  <div>
+                    <label className="text-white/60 text-sm mb-2 block">
+                      {newTask.recurrence === 'none' ? 'Due Date (optional)' : 'Start Date'}
+                    </label>
+                    <input
+                      type="date"
+                      value={newTask.dueDate ? new Date(newTask.dueDate).toISOString().split('T')[0] : ''}
+                      onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value ? new Date(e.target.value).toISOString() : null }))}
+                      className="w-full glass-input px-4 py-3 rounded-xl text-white"
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
+                  
                   <button
                     onClick={handleAddTask}
                     disabled={!newTask.title.trim()}
                     className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-green-500/20 border-green-500/30 hover:bg-green-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
-                    Add Task
+                    {newTask.recurrence !== 'none' ? '🔄 Add Recurring Task' : 'Add Task'}
                   </button>
                 </div>
               </div>
