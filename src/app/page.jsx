@@ -187,6 +187,8 @@ export default function Frog() {
   const [showTop3Picker, setShowTop3Picker] = useState(false);
   // Quick Wins Filter
   const [showQuickWinsOnly, setShowQuickWinsOnly] = useState(false);
+  // Focused View - only show frog + top 3 to reduce overwhelm
+  const [focusedView, setFocusedView] = useState(true);
   const [expandedTask, setExpandedTask] = useState(null);
   const [subtasks, setSubtasks] = useState({});  // { taskId: [{id, title, completed}] }
   const [newSubtask, setNewSubtask] = useState('');
@@ -1089,6 +1091,19 @@ export default function Frog() {
     });
   }
 
+  // Apply Focused View filter (only show frog + top 3 to reduce overwhelm)
+  const hasPriorityTasks = dailyFrog || dailyTop3.length > 0;
+  if (focusedView && hasPriorityTasks) {
+    filteredTasks = filteredTasks.filter(t =>
+      t.frog || dailyTop3.includes(t.id)
+    );
+  }
+
+  // Count of hidden tasks when in focused view
+  const hiddenTasksCount = hasPriorityTasks && focusedView
+    ? tasks.filter(t => !t.frog && !dailyTop3.includes(t.id)).length
+    : 0;
+
   // Sort tasks - frog first, then by difficulty
   const sortedTasks = [...filteredTasks].sort((a, b) => {
     // Top 3 tasks come first
@@ -1924,6 +1939,36 @@ export default function Frog() {
                 </SwipeableTask>
               );
             })
+          )}
+
+          {/* View All / Focus Mode Toggle */}
+          {hasPriorityTasks && (
+            <div className="mt-6 mb-4">
+              {focusedView ? (
+                <button
+                  onClick={() => { Haptics.light(); setFocusedView(false); }}
+                  className="w-full glass-card p-4 flex items-center justify-center gap-3 hover:bg-white/10 transition-all"
+                >
+                  <span className="text-white/60">📋</span>
+                  <span className="text-white/70">
+                    View all tasks
+                    {hiddenTasksCount > 0 && (
+                      <span className="ml-2 bg-white/20 text-white/60 text-xs px-2 py-0.5 rounded-full">
+                        +{hiddenTasksCount} more
+                      </span>
+                    )}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { Haptics.light(); setFocusedView(true); }}
+                  className="w-full glass-card p-4 flex items-center justify-center gap-3 bg-green-500/10 border border-green-500/20 hover:bg-green-500/20 transition-all"
+                >
+                  <span className="text-green-400">🎯</span>
+                  <span className="text-green-400">Focus on priorities only</span>
+                </button>
+              )}
+            </div>
           )}
           </div>
         </PullToRefresh>
