@@ -9,7 +9,7 @@ import { useAchievements } from '@/components/AchievementsContext';
 import { AchievementPopup } from '@/components/AchievementBadge';
 import FrogCharacter, { getFrogStage, FrogEvolutionShowcase } from '@/components/FrogCharacter';
 import FocusSounds from '@/components/FocusSounds';
-import { ReminderPicker, ScheduledRemindersList, useRestoreReminders, scheduleNotification, cancelNotification } from '@/components/ReminderManager';
+import { ReminderPicker, ScheduledRemindersList, useRestoreReminders, scheduleNotification as scheduleTaskReminder, cancelNotification } from '@/components/ReminderManager';
 import { CategoryManagerList, useCategories, getCategories, DEFAULT_CATEGORIES } from '@/components/CategoryManager';
 import { Haptics } from '@/components/iOSUtils';
 import SwipeableTask from '@/components/SwipeableTask';
