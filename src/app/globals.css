@@ -304,6 +304,112 @@
     radial-gradient(ellipse at 50% 80%, rgba(190, 18, 60, 0.2) 0%, transparent 35%);
 }
 
+
+/* ===== Light Mode Backgrounds ===== */
+
+.bg-light-sky {
+  background: linear-gradient(180deg, #e0f2fe 0%, #f0f9ff 50%, #e0f2fe 100%);
+}
+
+.bg-light-sky::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 30% 30%, rgba(56, 189, 248, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 70%, rgba(125, 211, 252, 0.15) 0%, transparent 45%);
+}
+
+.bg-light-peach {
+  background: linear-gradient(180deg, #fef3e2 0%, #fff7ed 50%, #fef3e2 100%);
+}
+
+.bg-light-peach::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 40% 40%, rgba(251, 146, 60, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 60%, rgba(253, 186, 116, 0.1) 0%, transparent 45%);
+}
+
+.bg-light-mint {
+  background: linear-gradient(180deg, #d1fae5 0%, #ecfdf5 50%, #d1fae5 100%);
+}
+
+.bg-light-mint::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 30% 50%, rgba(52, 211, 153, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 40%, rgba(110, 231, 183, 0.15) 0%, transparent 45%);
+}
+
+.bg-light-lavender {
+  background: linear-gradient(180deg, #ede9fe 0%, #f5f3ff 50%, #ede9fe 100%);
+}
+
+.bg-light-lavender::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 25% 35%, rgba(167, 139, 250, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 65%, rgba(196, 181, 253, 0.15) 0%, transparent 45%);
+}
+
+.bg-light-rose {
+  background: linear-gradient(180deg, #ffe4e6 0%, #fff1f2 50%, #ffe4e6 100%);
+}
+
+.bg-light-rose::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 35% 45%, rgba(251, 113, 133, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 65% 55%, rgba(253, 164, 175, 0.15) 0%, transparent 45%);
+}
+
+.bg-light-cream {
+  background: linear-gradient(180deg, #fef9c3 0%, #fefce8 50%, #fef9c3 100%);
+}
+
+.bg-light-cream::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 30% 40%, rgba(250, 204, 21, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 60%, rgba(253, 224, 71, 0.1) 0%, transparent 45%);
+}
+
+.bg-light-silver {
+  background: linear-gradient(180deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%);
+}
+
+.bg-light-silver::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 40% 30%, rgba(156, 163, 175, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 70%, rgba(209, 213, 219, 0.1) 0%, transparent 45%);
+}
+
+.bg-light-ocean {
+  background: linear-gradient(180deg, #cffafe 0%, #ecfeff 50%, #cffafe 100%);
+}
+
+.bg-light-ocean::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 25% 40%, rgba(34, 211, 238, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 60%, rgba(103, 232, 249, 0.15) 0%, transparent 45%);
+}
 /* ===== Background Animations ===== */
 
 @keyframes aurora {
@@ -900,36 +1006,38 @@ body {
   --bg-secondary: #ffffff;
   --bg-tertiary: #e5e5ea;
   --text-primary: #1c1c1e;
-  --text-secondary: rgba(0, 0, 0, 0.6);
-  --text-tertiary: rgba(0, 0, 0, 0.4);
-  --glass-bg: rgba(255, 255, 255, 0.85);
+  --text-secondary: #3c3c43;
+  --text-tertiary: #8e8e93;
+  --glass-bg: rgba(255, 255, 255, 0.95);
   --glass-border: rgba(0, 0, 0, 0.08);
-  --separator: rgba(0, 0, 0, 0.1);
+  --separator: rgba(0, 0, 0, 0.12);
   --accent-bg: rgba(0, 0, 0, 0.06);
   --button-bg: rgba(0, 0, 0, 0.08);
   --button-hover: rgba(0, 0, 0, 0.12);
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-/* Light mode specific overrides */
+/* Light mode body */
 .light-mode body {
   background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
-/* Glass cards - main content containers */
+/* Glass cards - main content containers - HIGH OPACITY for readability */
 .light-mode .glass,
 .light-mode .glass-card {
-  background: rgba(255, 255, 255, 0.92) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: var(--card-shadow) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
-/* Header bar */
+/* Header bar - solid for better readability */
 .light-mode .glass-dark {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
 }
 
 /* Primary text (white -> dark) */
@@ -938,19 +1046,20 @@ body {
 }
 
 /* Secondary text */
+.light-mode .text-white\/70,
 .light-mode .text-white\/60,
 .light-mode .text-white\/50 {
   color: var(--text-secondary) !important;
 }
 
-/* Tertiary text */
+/* Tertiary/muted text */
 .light-mode .text-white\/40,
 .light-mode .text-white\/30,
 .light-mode .text-white\/20 {
   color: var(--text-tertiary) !important;
 }
 
-/* Background overlays - make more visible */
+/* Background overlays - visible but subtle */
 .light-mode .bg-white\/5 {
   background: rgba(0, 0, 0, 0.04) !important;
 }
@@ -971,18 +1080,27 @@ body {
   background: rgba(0, 0, 0, 0.12) !important;
 }
 
-/* Borders */
-.light-mode .border-white\/10,
+/* Borders - visible */
+.light-mode .border-white\/5,
+.light-mode .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
 .light-mode .border-white\/20,
 .light-mode .border-white\/30 {
-  border-color: rgba(0, 0, 0, 0.1) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
 }
 
 /* Glass inputs */
 .light-mode .glass-input {
   background: rgba(0, 0, 0, 0.05) !important;
   color: var(--text-primary) !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+.light-mode .glass-input:focus {
+  border-color: #007aff !important;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15) !important;
 }
 
 .light-mode .glass-input::placeholder {
@@ -999,20 +1117,30 @@ body {
   background: rgba(0, 0, 0, 0.1) !important;
 }
 
+.light-mode .glass-button:active {
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+
 /* Icon buttons */
 .light-mode .glass-icon,
 .light-mode .glass-icon-sm {
-  background: rgba(0, 0, 0, 0.06) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
   color: var(--text-primary) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
 }
 
 .light-mode .glass-icon:hover,
 .light-mode .glass-icon-sm:hover {
-  background: rgba(0, 0, 0, 0.1) !important;
+  background: rgba(255, 255, 255, 1) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Green success states should stay green */
+/* Green/success states - keep vibrant */
+.light-mode .bg-green-500 {
+  background: #22c55e !important;
+}
+
 .light-mode .bg-green-500\/20 {
   background: rgba(34, 197, 94, 0.15) !important;
 }
@@ -1022,115 +1150,185 @@ body {
 }
 
 .light-mode .border-green-500\/30 {
-  border-color: rgba(34, 197, 94, 0.3) !important;
+  border-color: rgba(34, 197, 94, 0.4) !important;
 }
 
-/* Time/duration buttons */
-.light-mode button[class*="rounded-xl"][class*="text-sm"],
-.light-mode button[class*="rounded-xl"][class*="text-xs"] {
-  background: rgba(0, 0, 0, 0.06) !important;
+.light-mode .text-green-400,
+.light-mode .text-green-500 {
+  color: #16a34a !important;
+}
+
+/* Start button - make it pop */
+.light-mode button.text-green-400,
+.light-mode span.text-green-400 {
+  color: #16a34a !important;
+  font-weight: 600;
+}
+
+/* Duration buttons (5m, 15m, 25m, 45m) */
+.light-mode button[class*="rounded-xl"][class*="p-3"],
+.light-mode button[class*="rounded-xl"][class*="p-2"] {
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-mode button[class*="rounded-xl"][class*="p-3"]:hover,
+.light-mode button[class*="rounded-xl"][class*="p-2"]:hover {
+  background: rgba(255, 255, 255, 1) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Category filter pills */
+.light-mode .rounded-full.bg-white\/20 {
+  background: rgba(0, 122, 255, 0.12) !important;
+  color: #007aff !important;
+}
+
+.light-mode .rounded-full.text-white\/60 {
+  background: rgba(0, 0, 0, 0.04) !important;
   color: var(--text-secondary) !important;
 }
 
-.light-mode button[class*="rounded-xl"][class*="text-sm"]:hover,
-.light-mode button[class*="rounded-xl"][class*="text-xs"]:hover {
-  background: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Filter/category pills */
-.light-mode .rounded-full[class*="bg-white"] {
-  background: rgba(0, 0, 0, 0.08) !important;
-}
-
 /* Progress bars */
-.light-mode .bg-white\/10.rounded-full,
-.light-mode div[class*="h-1"][class*="bg-white"] {
+.light-mode div[class*="h-1"][class*="bg-white"],
+.light-mode div[class*="h-1.5"][class*="bg-white"],
+.light-mode div[class*="h-2"][class*="bg-white"] {
   background: rgba(0, 0, 0, 0.1) !important;
 }
 
 /* iOS context menu */
 .light-mode .ios-context-menu {
   background: rgba(255, 255, 255, 0.98) !important;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
 .light-mode .ios-context-menu-item {
-  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-primary) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
 }
 
 .light-mode .ios-context-menu-item:hover {
-  background: rgba(0, 0, 0, 0.05) !important;
+  background: rgba(0, 0, 0, 0.04) !important;
 }
 
-/* Toggle switches - inactive state */
-.light-mode div[class*="rounded-full"][class*="bg-white/20"] {
+/* Toggle switches */
+.light-mode div[class*="rounded-full"][class*="w-11"][class*="bg-white"] {
   background: rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Badge/tag styling */
-.light-mode span[class*="rounded-full"][class*="bg-white"] {
-  background: rgba(0, 0, 0, 0.08) !important;
+.light-mode span[class*="rounded-full"][class*="px-2"][class*="bg-white"] {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: var(--text-secondary) !important;
 }
 
-.light-mode span[class*="rounded-full"][class*="text-white/60"] {
+/* Category badges (Patty Shack, Home, etc) */
+.light-mode span[class*="rounded-full"][class*="text-xs"] {
+  background: rgba(0, 0, 0, 0.06) !important;
   color: var(--text-secondary) !important;
 }
 
 /* Number badges in Top 3 */
-.light-mode span[class*="rounded-lg"][class*="bg-white"] {
+.light-mode span[class*="rounded-lg"][class*="w-7"] {
   background: rgba(0, 0, 0, 0.08) !important;
   color: var(--text-secondary) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Dropdown arrows and misc elements */
-.light-mode .text-white\/20 {
-  color: rgba(0, 0, 0, 0.3) !important;
+/* Frog Eaten celebration - keep green visible */
+.light-mode .text-green-400.font-bold {
+  color: #16a34a !important;
 }
 
-/* Task list backgrounds */
-.light-mode div[class*="p-2"][class*="bg-white/5"],
-.light-mode div[class*="p-3"][class*="bg-white/5"] {
-  background: rgba(0, 0, 0, 0.04) !important;
+/* Task list item backgrounds */
+.light-mode div[class*="flex"][class*="gap-2"][class*="p-2"][class*="bg-white"] {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border-radius: 8px;
 }
 
 /* Dividers */
-.light-mode div[class*="w-px"][class*="bg-white"] {
+.light-mode div[class*="w-px"][class*="bg-white"],
+.light-mode div[class*="h-px"][class*="bg-white"] {
   background: rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Make sure actual white backgrounds stay white */
-.light-mode .bg-white {
-  background: #ffffff !important;
+/* Dropdown arrows */
+.light-mode .text-white\/20 {
+  color: var(--text-tertiary) !important;
 }
 
-/* Ring colors */
+/* Ring colors for focus */
 .light-mode .ring-white\/20 {
   --tw-ring-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Focus states */
-.light-mode input:focus,
-.light-mode button:focus,
-.light-mode textarea:focus {
-  outline-color: rgba(0, 122, 255, 0.5) !important;
+.light-mode .ring-green-500\/50 {
+  --tw-ring-color: rgba(34, 197, 94, 0.3) !important;
+}
+
+/* Stars emoji rating */
+.light-mode .text-yellow-400 {
+  color: #eab308 !important;
 }
 
 /* Placeholder text */
 .light-mode ::placeholder {
-  color: rgba(0, 0, 0, 0.4) !important;
+  color: var(--text-tertiary) !important;
+  opacity: 1;
 }
 
-/* Selected/active states */
-.light-mode .bg-white\/20.text-white {
-  background: rgba(0, 122, 255, 0.15) !important;
-  color: #007aff !important;
+/* Modal backdrops */
+.light-mode .bg-black\/50 {
+  background: rgba(0, 0, 0, 0.4) !important;
 }
 
-/* Shadow fixes */
-.light-mode [class*="shadow"] {
-  --tw-shadow-color: rgba(0, 0, 0, 0.08) !important;
+/* Level/XP badges */
+.light-mode span[class*="text-green-400"][class*="text-xs"] {
+  color: #16a34a !important;
 }
 
+/* Bottom navigation */
+.light-mode nav[class*="glass"] {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Safe area padding backgrounds */
+.light-mode .safe-area-top {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+/* Animate pulse glow - soften for light mode */
+.light-mode .animate-pulse-glow {
+  animation: pulse-glow-light 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow-light {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(34, 197, 94, 0.3), 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.4), 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* Skeleton loading states */
+.light-mode .animate-pulse {
+  background: linear-gradient(90deg, 
+    rgba(0, 0, 0, 0.06) 25%, 
+    rgba(0, 0, 0, 0.1) 50%, 
+    rgba(0, 0, 0, 0.06) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* Float animation shadow */
+.light-mode .float-animation {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
 /* Stagger animation for lists */
 @keyframes stagger-fade-in {
   from {
