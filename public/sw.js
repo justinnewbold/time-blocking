@@ -1,8 +1,10 @@
-const CACHE_NAME = 'frog-v4';
+const CACHE_NAME = 'frog-v5';
 const urlsToCache = [
   '/',
   '/offline',
   '/stats',
+  '/calendar',
+  '/achievements',
   '/manifest.json',
   '/icons/icon.svg'
 ];
@@ -93,7 +95,7 @@ self.addEventListener('push', (event) => {
     data: data.data || { url: '/' },
     actions: data.actions || [
       { action: 'open', title: 'Open Frog' },
-      { action: 'dismiss', title: 'Dismiss' }
+      { action: 'snooze', title: 'Snooze 30m' }
     ],
     requireInteraction: data.requireInteraction || false
   };
@@ -108,6 +110,25 @@ self.addEventListener('notificationclick', (event) => {
   console.log('[Frog SW] Notification clicked:', event.action);
   
   event.notification.close();
+  
+  // Handle snooze action
+  if (event.action === 'snooze') {
+    const snoozeDelay = 30 * 60 * 1000; // 30 minutes
+    const notification = event.notification;
+    
+    setTimeout(() => {
+      self.registration.showNotification(notification.title, {
+        body: notification.body + ' (snoozed)',
+        icon: '/icons/icon.svg',
+        badge: '/icons/icon.svg',
+        tag: notification.tag + '-snoozed',
+        vibrate: [100, 50, 100],
+        data: notification.data
+      });
+    }, snoozeDelay);
+    
+    return;
+  }
   
   if (event.action === 'dismiss') return;
   
@@ -165,9 +186,29 @@ self.addEventListener('message', (event) => {
     
     // Determine vibration pattern based on notification type
     let vibrate = [100, 50, 100];
+    let actions = [
+      { action: 'open', title: 'Open Frog' },
+      { action: 'snooze', title: 'Snooze' }
+    ];
+    
     if (notification.tag === 'focus-end') {
-      // Celebratory vibration for timer completion!
       vibrate = [200, 100, 200, 100, 200, 100, 400];
+      actions = [
+        { action: 'celebrate', title: '🎉 Done!' },
+        { action: 'open', title: 'Open App' }
+      ];
+    } else if (notification.tag === 'morning_checkin') {
+      vibrate = [100, 50, 100, 50, 200];
+      actions = [
+        { action: 'checkin', title: "Let's Go!" },
+        { action: 'snooze', title: '30 min' }
+      ];
+    } else if (notification.tag === 'streak_protection') {
+      vibrate = [200, 100, 200];
+      actions = [
+        { action: 'open', title: 'Save Streak!' },
+        { action: 'dismiss', title: 'Later' }
+      ];
     }
     
     const timeoutId = setTimeout(() => {
@@ -178,16 +219,8 @@ self.addEventListener('message', (event) => {
         tag: notification.tag,
         vibrate: vibrate,
         data: notification.data || { url: '/' },
-        actions: notification.tag === 'focus-end' 
-          ? [
-              { action: 'celebrate', title: '🎉 Celebrate!' },
-              { action: 'open', title: 'Open App' }
-            ]
-          : [
-              { action: 'open', title: 'Open Frog' },
-              { action: 'dismiss', title: 'Dismiss' }
-            ],
-        requireInteraction: notification.tag === 'focus-end'
+        actions: actions,
+        requireInteraction: ['focus-end', 'morning_checkin'].includes(notification.tag)
       });
       if (id) scheduledNotifications.delete(id);
     }, delay);
@@ -211,11 +244,10 @@ self.addEventListener('message', (event) => {
     }
   }
   
-  // Show immediate notification (for timer completion)
+  // Show immediate notification
   if (event.data.type === 'SHOW_NOTIFICATION') {
     const { notification } = event.data;
     
-    // Determine vibration pattern
     let vibrate = [100, 50, 100];
     if (notification.tag === 'focus-end') {
       vibrate = [200, 100, 200, 100, 200, 100, 400];
@@ -230,6 +262,55 @@ self.addEventListener('message', (event) => {
       data: notification.data || { url: '/' },
       requireInteraction: notification.tag === 'focus-end'
     });
+  }
+  
+  // Schedule daily check-in for specific time
+  if (event.data.type === 'SCHEDULE_DAILY_CHECKIN') {
+    const { time, message } = event.data;
+    const [hours, minutes] = time.split(':').map(Number);
+    
+    const now = new Date();
+    const scheduledTime = new Date(now);
+    scheduledTime.setHours(hours, minutes, 0, 0);
+    
+    // If time has passed today, schedule for tomorrow
+    if (scheduledTime <= now) {
+      scheduledTime.setDate(scheduledTime.getDate() + 1);
+    }
+    
+    const delay = scheduledTime.getTime() - now.getTime();
+    
+    // Clear existing daily checkin
+    if (scheduledNotifications.has('daily-checkin')) {
+      clearTimeout(scheduledNotifications.get('daily-checkin'));
+    }
+    
+    const timeoutId = setTimeout(() => {
+      self.registration.showNotification('🐸 Good Morning!', {
+        body: message || "Time to check your energy and pick today's frog!",
+        icon: '/icons/icon.svg',
+        badge: '/icons/icon.svg',
+        tag: 'morning_checkin',
+        vibrate: [100, 50, 100, 50, 200],
+        data: { url: '/', action: 'checkin' },
+        actions: [
+          { action: 'checkin', title: "Let's Go!" },
+          { action: 'snooze', title: '30 min' }
+        ],
+        requireInteraction: true
+      });
+      scheduledNotifications.delete('daily-checkin');
+      
+      // Reschedule for next day
+      event.source?.postMessage({
+        type: 'RESCHEDULE_DAILY_CHECKIN',
+        time: time
+      });
+    }, delay);
+    
+    scheduledNotifications.set('daily-checkin', timeoutId);
+    
+    console.log(`[Frog SW] Daily check-in scheduled for ${scheduledTime}`);
   }
 });
 
@@ -255,7 +336,7 @@ async function showDailyCheckinReminder() {
       data: { url: '/', action: 'checkin' },
       actions: [
         { action: 'checkin', title: "Let's Go!" },
-        { action: 'dismiss', title: 'Later' }
+        { action: 'snooze', title: 'Later' }
       ]
     });
   }
