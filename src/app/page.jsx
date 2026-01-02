@@ -1979,9 +1979,9 @@ export default function Frog() {
 
         {/* Daily Top 3 Picker Modal */}
         {showTop3Picker && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center pt-16 sm:pt-0">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => dailyTop3.length > 0 && setShowTop3Picker(false)} />
-            <div className="relative w-full max-w-md mx-4 mb-4 sm:mb-0 animate-slide-up max-h-[80vh] overflow-hidden">
+            <div className="relative w-full max-w-md mx-4 mt-4 sm:mt-0 animate-slide-down max-h-[80vh] overflow-hidden">
               <div className="glass-card p-6 overflow-y-auto max-h-[80vh]">
                 <div className="flex items-center justify-between mb-4">
                   <div>
