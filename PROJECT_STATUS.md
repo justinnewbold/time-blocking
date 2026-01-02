@@ -99,7 +99,7 @@
 ### 🔴 Priority 1 - Next Up
 - [ ] **Integrate UserProfile in Settings** - Add account section
 - [ ] **Configure Supabase OAuth** - Enable Google/Apple providers
-- [ ] **Apple Reminders Sync** - Two-way sync
+- [x] **Apple Reminders Sync** - Two-way sync ✅
 
 ### 🟠 Priority 2 - High Impact
 - [ ] **Google Calendar** - Auto-block time
@@ -180,7 +180,30 @@ To enable OAuth, configure these in Supabase Dashboard:
 
 ## 🔄 Last Session Summary
 
-**Date**: January 1, 2026
+**Date**: January 02, 2026
+
+**What was done**:
+1. ✅ Created Apple Reminders 2-way sync API endpoint
+2. ✅ Created AppleRemindersSync UI component with glass design
+3. ✅ Created Shortcuts setup page with step-by-step instructions
+4. ✅ Integrated sync component into settings modal
+5. ✅ Added category mapping (Apple lists → Frog categories)
+6. ✅ Added priority to difficulty mapping
+7. ✅ Added intelligent energy estimation from task titles
+
+**Files Created**:
+- `src/app/api/apple-reminders/route.js` - Sync API endpoint
+- `src/components/AppleRemindersSync.jsx` - Sync UI component
+- `src/app/shortcuts/page.jsx` - Apple Shortcuts setup guide
+
+**Files Updated**:
+- `src/app/page.jsx` - Integrated AppleRemindersSync into settings
+
+**API Endpoints**:
+- `GET /api/apple-reminders` - Export tasks for Apple
+- `POST /api/apple-reminders` - Import reminders, sync, mark complete
+
+**Previous Session**
 
 **What was done**:
 1. ✅ Created AuthContext for Supabase authentication
