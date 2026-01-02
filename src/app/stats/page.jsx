@@ -678,6 +678,7 @@ export default function StatsPage() {
   
   return (
     <PageBackground page="stats">
+      <SwipeableTabView>
       <div className="min-h-screen pb-24">
         {/* Header */}
         <div className="glass-dark sticky top-0 z-30 safe-area-top">
