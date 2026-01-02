@@ -4,6 +4,8 @@ import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 import { BackgroundProvider } from '@/components/BackgroundContext'
 import { AchievementsProvider } from '@/components/AchievementsContext'
 import { ThemeProvider } from '@/components/ThemeProvider'
+import { AuthProvider } from '@/components/AuthContext'
+import LoginModal from '@/components/LoginModal'
 
 export const metadata = {
   title: 'Frog 🐸',
@@ -61,15 +63,18 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body className="text-white antialiased overscroll-none selection:bg-green-500/30">
-        <ThemeProvider>
-          <BackgroundProvider>
-            <AchievementsProvider>
-              <ServiceWorkerRegister />
-              {children}
-              <InstallPrompt />
-            </AchievementsProvider>
-          </BackgroundProvider>
-        </ThemeProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <BackgroundProvider>
+              <AchievementsProvider>
+                <ServiceWorkerRegister />
+                {children}
+                <InstallPrompt />
+                <LoginModal />
+              </AchievementsProvider>
+            </BackgroundProvider>
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   )
