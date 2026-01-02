@@ -420,6 +420,7 @@ export default function CalendarPage() {
 
   return (
     <PageBackground page="home">
+      <SwipeableTabView>
       <div className="min-h-screen pb-24 safe-area-top">
         {/* Header */}
         <div className="sticky top-0 z-40 glass-dark safe-area-top">
