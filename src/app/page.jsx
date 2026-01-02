@@ -21,6 +21,7 @@ import { TaskCardSkeleton, TaskListSkeleton, HeaderSkeleton } from '@/components
 import { TapToReorderList, useReorderableList } from '@/components/DraggableTaskList';
 import WidgetPreview from '@/components/WidgetPreview';
 import SwipeableTabView from '@/components/SwipeableTabView';
+import { useDailyReminders, ReminderModal, ReminderSettings } from '@/components/DailyReminders';
 
 // Categories - now uses dynamic categories from CategoryManager
 // Default categories are defined in CategoryManager.jsx
@@ -193,6 +194,19 @@ export default function Frog() {
   // Dynamic categories (default + custom)
   const [CATEGORIES, refreshCategories] = useCategories();
   const { isDark, toggleTheme } = useTheme();
+  
+  // Daily Reminders for ADD-friendly check-ins
+  const {
+    settings: reminderSettings,
+    updateSettings: updateReminderSettings,
+    showReminder,
+    dismissReminder,
+    snoozeReminder,
+    recordCheckin,
+    requestPermission: requestReminderPermission,
+    permission: reminderPermission,
+    scheduleDailyNotifications
+  } = useDailyReminders();
   
   // Reminder picker state
   const [showReminderPicker, setShowReminderPicker] = useState(false);
@@ -1090,6 +1104,19 @@ export default function Frog() {
   if (!isLoaded) {
     return (
       <PageBackground page="home">
+      {/* Daily Reminder Modal */}
+      <ReminderModal
+        reminder={showReminder}
+        onDismiss={dismissReminder}
+        onSnooze={snoozeReminder}
+        onCheckin={() => {
+          recordCheckin();
+          // If on checkin screen, proceed to tasks
+          if (screen === 'checkin') {
+            // Energy check will proceed normally
+          }
+        }}
+      />
         <div className="min-h-screen safe-area-top">
           {/* Skeleton Header */}
           <div className="sticky top-0 z-40 glass-dark safe-area-top">
@@ -1115,6 +1142,19 @@ export default function Frog() {
   if (screen === 'checkin') {
     return (
       <PageBackground page="home">
+      {/* Daily Reminder Modal */}
+      <ReminderModal
+        reminder={showReminder}
+        onDismiss={dismissReminder}
+        onSnooze={snoozeReminder}
+        onCheckin={() => {
+          recordCheckin();
+          // If on checkin screen, proceed to tasks
+          if (screen === 'checkin') {
+            // Energy check will proceed normally
+          }
+        }}
+      />
         <div className="min-h-screen flex flex-col safe-area-top safe-area-bottom">
           {/* Header */}
           <div className="p-6 text-center">
@@ -1183,6 +1223,19 @@ export default function Frog() {
     
     return (
       <PageBackground page="home">
+      {/* Daily Reminder Modal */}
+      <ReminderModal
+        reminder={showReminder}
+        onDismiss={dismissReminder}
+        onSnooze={snoozeReminder}
+        onCheckin={() => {
+          recordCheckin();
+          // If on checkin screen, proceed to tasks
+          if (screen === 'checkin') {
+            // Energy check will proceed normally
+          }
+        }}
+      />
         <div className="min-h-screen flex flex-col safe-area-top safe-area-bottom">
           {/* Header */}
           <div className="p-6 text-center">
@@ -1256,6 +1309,19 @@ export default function Frog() {
     
     return (
       <PageBackground page="home">
+      {/* Daily Reminder Modal */}
+      <ReminderModal
+        reminder={showReminder}
+        onDismiss={dismissReminder}
+        onSnooze={snoozeReminder}
+        onCheckin={() => {
+          recordCheckin();
+          // If on checkin screen, proceed to tasks
+          if (screen === 'checkin') {
+            // Energy check will proceed normally
+          }
+        }}
+      />
         <div className="min-h-screen flex flex-col items-center justify-center p-6 safe-area-top safe-area-bottom">
           {/* Timer Display */}
           <div className="glass-card p-8 w-full max-w-sm text-center mb-8">
@@ -1389,6 +1455,19 @@ export default function Frog() {
   // ===== MAIN TASKS SCREEN =====
   return (
     <PageBackground page="home">
+      {/* Daily Reminder Modal */}
+      <ReminderModal
+        reminder={showReminder}
+        onDismiss={dismissReminder}
+        onSnooze={snoozeReminder}
+        onCheckin={() => {
+          recordCheckin();
+          // If on checkin screen, proceed to tasks
+          if (screen === 'checkin') {
+            // Energy check will proceed normally
+          }
+        }}
+      />
       <SwipeableTabView>
         <div className="min-h-screen pb-32 safe-area-top">
         {/* Glass Header */}
