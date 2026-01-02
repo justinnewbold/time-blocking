@@ -1,16 +1,27 @@
-'use server';
-
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+// Lazy initialization for Supabase client to avoid build-time errors
+let supabaseClient = null;
+
+function getSupabase() {
+  if (!supabaseClient) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!url || !key) {
+      throw new Error('Supabase configuration is missing');
+    }
+
+    supabaseClient = createClient(url, key);
+  }
+  return supabaseClient;
+}
 
 // Sync secret for security (set in Vercel env vars)
-const SYNC_SECRET = process.env.APPLE_REMINDERS_SYNC_SECRET || 'frog-sync-2025';
+function getSyncSecret() {
+  return process.env.APPLE_REMINDERS_SYNC_SECRET || 'frog-sync-2025';
+}
 
 // Map Apple Reminders list names to Frog categories
 const LIST_TO_CATEGORY = {
@@ -57,7 +68,7 @@ export async function POST(request) {
     const body = await request.json();
     const { secret, action, reminders, user_id = 'default_user' } = body;
     
-    if (secret !== SYNC_SECRET) {
+    if (secret !== getSyncSecret()) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
@@ -85,11 +96,12 @@ export async function GET(request) {
   const user_id = searchParams.get('user_id') || 'default_user';
   const filter = searchParams.get('filter') || 'incomplete';
   
-  if (secret !== SYNC_SECRET) {
+  if (secret !== getSyncSecret()) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  
+
   try {
+    const supabase = getSupabase();
     let query = supabase
       .from('focusflow_tasks')
       .select('*')
@@ -120,8 +132,9 @@ export async function GET(request) {
 }
 
 async function importFromApple(reminders, user_id) {
+  const supabase = getSupabase();
   const results = { created: 0, updated: 0, skipped: 0, errors: [] };
-  
+
   for (const reminder of reminders) {
     try {
       const { data: existing } = await supabase
@@ -165,6 +178,7 @@ async function importFromApple(reminders, user_id) {
 }
 
 async function exportToApple(user_id) {
+  const supabase = getSupabase();
   const { data: tasks, error } = await supabase
     .from('focusflow_tasks')
     .select('*')
@@ -187,8 +201,9 @@ async function exportToApple(user_id) {
 }
 
 async function fullSync(appleReminders, user_id) {
+  const supabase = getSupabase();
   const results = { imported: { created: 0, updated: 0 }, exported: { count: 0 }, completed_sync: { count: 0 } };
-  
+
   for (const reminder of appleReminders) {
     const { data: existing } = await supabase
       .from('focusflow_tasks')
@@ -248,6 +263,7 @@ async function fullSync(appleReminders, user_id) {
 }
 
 async function markComplete(apple_id, user_id) {
+  const supabase = getSupabase();
   const { data, error } = await supabase
     .from('focusflow_tasks')
     .update({ completed: true, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
