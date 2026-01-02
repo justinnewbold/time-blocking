@@ -5,20 +5,41 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Helper functions for FocusFlow
+// Helper to get current user ID
+async function getCurrentUserId() {
+  const { data: { user } } = await supabase.auth.getUser()
+  return user?.id || null
+}
 
-// Tasks
-export async function getTasks() {
-  const { data, error } = await supabase
+// Helper to check if user is authenticated
+async function isAuthenticated() {
+  const userId = await getCurrentUserId()
+  return !!userId
+}
+
+// Tasks - now with user filtering
+export async function getTasks(userId = null) {
+  let query = supabase
     .from('focusflow_tasks')
     .select('*')
     .order('created_at', { ascending: false })
   
+  // If userId provided, filter by user
+  if (userId) {
+    query = query.eq('user_id', userId)
+  }
+  
+  const { data, error } = await query
   if (error) throw error
   return data
 }
 
 export async function createTask(task) {
+  // Get current user if not provided
+  if (!task.user_id) {
+    task.user_id = await getCurrentUserId()
+  }
+  
   const { data, error } = await supabase
     .from('focusflow_tasks')
     .insert([task])
@@ -92,6 +113,10 @@ export async function upsertUserProgress(progress) {
 
 // Focus Sessions
 export async function createSession(session) {
+  if (!session.user_id) {
+    session.user_id = await getCurrentUserId()
+  }
+  
   const { data, error } = await supabase
     .from('focusflow_sessions')
     .insert([session])
@@ -118,13 +143,71 @@ export async function completeSession(id, energyAfter) {
   return data
 }
 
-export async function getTodaysSessions() {
+export async function getTodaysSessions(userId = null) {
   const today = new Date().toISOString().split('T')[0]
-  const { data, error } = await supabase
+  let query = supabase
     .from('focusflow_sessions')
     .select('*')
     .gte('started_at', today + 'T00:00:00')
     .lt('started_at', today + 'T23:59:59')
+  
+  if (userId) {
+    query = query.eq('user_id', userId)
+  }
+  
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+// Achievements
+export async function getUserAchievements(userId) {
+  const { data, error } = await supabase
+    .from('focusflow_achievements')
+    .select('*')
+    .eq('user_id', userId)
+  
+  if (error && error.code !== 'PGRST116') throw error
+  return data || []
+}
+
+export async function unlockAchievement(userId, achievementId) {
+  const { data, error } = await supabase
+    .from('focusflow_achievements')
+    .insert([{
+      user_id: userId,
+      achievement_id: achievementId,
+      unlocked_at: new Date().toISOString()
+    }])
+    .select()
+    .single()
+  
+  if (error && error.code !== '23505') throw error // Ignore duplicate key
+  return data
+}
+
+// Custom Categories
+export async function getUserCategories(userId) {
+  const { data, error } = await supabase
+    .from('focusflow_categories')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+  
+  if (error && error.code !== 'PGRST116') throw error
+  return data || []
+}
+
+export async function createCategory(category) {
+  if (!category.user_id) {
+    category.user_id = await getCurrentUserId()
+  }
+  
+  const { data, error } = await supabase
+    .from('focusflow_categories')
+    .insert([category])
+    .select()
+    .single()
   
   if (error) throw error
   return data
@@ -164,3 +247,6 @@ export async function syncInitialTasks(tasks, userId) {
   if (error) throw error
   return data
 }
+
+// Export auth helpers
+export { getCurrentUserId, isAuthenticated }
