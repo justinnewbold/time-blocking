@@ -894,16 +894,20 @@ body {
 }
 
 /* Light mode */
+/* ===== Enhanced Light Mode Styles ===== */
 .light-mode {
   --bg-primary: #f5f5f7;
   --bg-secondary: #ffffff;
   --bg-tertiary: #e5e5ea;
-  --text-primary: #000000;
+  --text-primary: #1c1c1e;
   --text-secondary: rgba(0, 0, 0, 0.6);
   --text-tertiary: rgba(0, 0, 0, 0.4);
-  --glass-bg: rgba(0, 0, 0, 0.05);
-  --glass-border: rgba(0, 0, 0, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.08);
   --separator: rgba(0, 0, 0, 0.1);
+  --accent-bg: rgba(0, 0, 0, 0.06);
+  --button-bg: rgba(0, 0, 0, 0.08);
+  --button-hover: rgba(0, 0, 0, 0.12);
 }
 
 /* Light mode specific overrides */
@@ -911,68 +915,221 @@ body {
   background: var(--bg-primary);
 }
 
+/* Glass cards - main content containers */
 .light-mode .glass,
 .light-mode .glass-card {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(0, 0, 0, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
+/* Header bar */
 .light-mode .glass-dark {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
 }
 
+/* Primary text (white -> dark) */
 .light-mode .text-white {
-  color: var(--text-primary);
+  color: var(--text-primary) !important;
 }
 
+/* Secondary text */
 .light-mode .text-white\/60,
 .light-mode .text-white\/50 {
-  color: var(--text-secondary);
+  color: var(--text-secondary) !important;
 }
 
+/* Tertiary text */
 .light-mode .text-white\/40,
-.light-mode .text-white\/30 {
-  color: var(--text-tertiary);
+.light-mode .text-white\/30,
+.light-mode .text-white\/20 {
+  color: var(--text-tertiary) !important;
 }
 
-.light-mode .bg-white\/5,
+/* Background overlays - make more visible */
+.light-mode .bg-white\/5 {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
 .light-mode .bg-white\/10 {
-  background: var(--glass-bg);
+  background: rgba(0, 0, 0, 0.06) !important;
 }
 
+.light-mode .bg-white\/15 {
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-mode .bg-white\/20 {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+.light-mode .bg-white\/30 {
+  background: rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Borders */
 .light-mode .border-white\/10,
-.light-mode .border-white\/20 {
-  border-color: var(--separator);
+.light-mode .border-white\/20,
+.light-mode .border-white\/30 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
+/* Glass inputs */
 .light-mode .glass-input {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: var(--text-primary) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
 .light-mode .glass-input::placeholder {
-  color: var(--text-tertiary);
+  color: var(--text-tertiary) !important;
 }
 
+/* Buttons */
 .light-mode .glass-button {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: var(--text-primary) !important;
 }
 
 .light-mode .glass-button:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.1) !important;
 }
 
+/* Icon buttons */
+.light-mode .glass-icon,
+.light-mode .glass-icon-sm {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: var(--text-primary) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-mode .glass-icon:hover,
+.light-mode .glass-icon-sm:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Green success states should stay green */
+.light-mode .bg-green-500\/20 {
+  background: rgba(34, 197, 94, 0.15) !important;
+}
+
+.light-mode .bg-green-500\/10 {
+  background: rgba(34, 197, 94, 0.1) !important;
+}
+
+.light-mode .border-green-500\/30 {
+  border-color: rgba(34, 197, 94, 0.3) !important;
+}
+
+/* Time/duration buttons */
+.light-mode button[class*="rounded-xl"][class*="text-sm"],
+.light-mode button[class*="rounded-xl"][class*="text-xs"] {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: var(--text-secondary) !important;
+}
+
+.light-mode button[class*="rounded-xl"][class*="text-sm"]:hover,
+.light-mode button[class*="rounded-xl"][class*="text-xs"]:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Filter/category pills */
+.light-mode .rounded-full[class*="bg-white"] {
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Progress bars */
+.light-mode .bg-white\/10.rounded-full,
+.light-mode div[class*="h-1"][class*="bg-white"] {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* iOS context menu */
 .light-mode .ios-context-menu {
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15) !important;
 }
 
 .light-mode .ios-context-menu-item {
-  border-color: var(--separator);
+  border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
-/* ===== Stagger Animations ===== */
+.light-mode .ios-context-menu-item:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Toggle switches - inactive state */
+.light-mode div[class*="rounded-full"][class*="bg-white/20"] {
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Badge/tag styling */
+.light-mode span[class*="rounded-full"][class*="bg-white"] {
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-mode span[class*="rounded-full"][class*="text-white/60"] {
+  color: var(--text-secondary) !important;
+}
+
+/* Number badges in Top 3 */
+.light-mode span[class*="rounded-lg"][class*="bg-white"] {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* Dropdown arrows and misc elements */
+.light-mode .text-white\/20 {
+  color: rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Task list backgrounds */
+.light-mode div[class*="p-2"][class*="bg-white/5"],
+.light-mode div[class*="p-3"][class*="bg-white/5"] {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Dividers */
+.light-mode div[class*="w-px"][class*="bg-white"] {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Make sure actual white backgrounds stay white */
+.light-mode .bg-white {
+  background: #ffffff !important;
+}
+
+/* Ring colors */
+.light-mode .ring-white\/20 {
+  --tw-ring-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Focus states */
+.light-mode input:focus,
+.light-mode button:focus,
+.light-mode textarea:focus {
+  outline-color: rgba(0, 122, 255, 0.5) !important;
+}
+
+/* Placeholder text */
+.light-mode ::placeholder {
+  color: rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Selected/active states */
+.light-mode .bg-white\/20.text-white {
+  background: rgba(0, 122, 255, 0.15) !important;
+  color: #007aff !important;
+}
+
+/* Shadow fixes */
+.light-mode [class*="shadow"] {
+  --tw-shadow-color: rgba(0, 0, 0, 0.08) !important;
+}
 
 /* Stagger animation for lists */
 @keyframes stagger-fade-in {
