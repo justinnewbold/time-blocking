@@ -47,11 +47,22 @@
 - [x] **Streak Calendar** - GitHub-style contribution graph
 - [x] **Time Estimates** - Track estimated vs actual time
 
-### Notifications & Reminders 🔔 NEW
+### Notifications & Reminders 🔔
 - [x] **Daily Check-in Reminders** - Morning nudges with snooze
 - [x] **Timer Completion Notifications** - Push + sound + vibration
 - [x] **Streak Protection Alerts** - Save your streak
 - [x] **Service Worker v5** - Enhanced notification scheduling
+
+### Authentication 🔐 NEW!
+- [x] **AuthContext** - Complete auth state management
+- [x] **LoginModal** - Beautiful glass-styled login/signup UI
+- [x] **Google OAuth** - One-tap Google sign in
+- [x] **Apple OAuth** - Sign in with Apple support
+- [x] **Email/Password** - Traditional authentication
+- [x] **Password Reset** - Email-based recovery
+- [x] **Auto-migration** - Local data syncs to cloud on first login
+- [x] **UserProfile** - Account display with sync status
+- [x] **Guest Mode** - Continue without account option
 
 ### Achievements System 🏆
 - [x] 30+ achievement badges
@@ -86,7 +97,8 @@
 ## 📋 To-Do List
 
 ### 🔴 Priority 1 - Next Up
-- [ ] **Authentication** - Supabase Auth login
+- [ ] **Integrate UserProfile in Settings** - Add account section
+- [ ] **Configure Supabase OAuth** - Enable Google/Apple providers
 - [ ] **Apple Reminders Sync** - Two-way sync
 
 ### 🟠 Priority 2 - High Impact
@@ -117,51 +129,85 @@ src/
 │   ├── stats/page.jsx        # Stats Dashboard
 │   ├── calendar/page.jsx     # Calendar view
 │   ├── achievements/page.jsx # Achievements page
+│   ├── auth/callback/page.jsx # 🆕 OAuth callback
 │   └── offline/page.jsx      # Offline fallback
 ├── components/
+│   ├── AuthContext.jsx       # 🆕 Auth state management
+│   ├── LoginModal.jsx        # 🆕 Login/signup UI
+│   ├── UserProfile.jsx       # 🆕 Account display
 │   ├── BackgroundContext.jsx      # Background theming
 │   ├── BackgroundSelector.jsx     # Background picker
 │   ├── AchievementsContext.jsx    # Achievement system
 │   ├── AchievementBadge.jsx       # Badge components
-│   ├── DailyReminders.jsx         # 🆕 Morning check-in system
+│   ├── DailyReminders.jsx         # Morning check-in system
 │   ├── ThemeProvider.jsx          # Theme management
 │   ├── NotificationManager.jsx    # Push notifications
 │   ├── SwipeableTabView.jsx       # Gesture navigation
 │   ├── FrogCharacter.jsx          # Evolution system
 │   └── ...more
 ├── lib/
-│   └── supabase.js
+│   └── supabase.js           # 🆕 Updated with auth helpers
 public/
 ├── manifest.json
-├── sw.js (v5)                     # 🆕 Enhanced service worker
+├── sw.js (v5)                     # Enhanced service worker
 └── icons/
 ```
 
 ---
 
+## 🔐 Supabase Auth Configuration Required
+
+To enable OAuth, configure these in Supabase Dashboard:
+
+### Google OAuth
+1. Go to Supabase Dashboard → Authentication → Providers
+2. Enable Google provider
+3. Add Google Client ID and Secret from Google Cloud Console
+4. Set redirect URL: `https://frog.newbold.cloud/auth/callback`
+
+### Apple OAuth
+1. Go to Supabase Dashboard → Authentication → Providers
+2. Enable Apple provider
+3. Add Apple Service ID and Secret Key
+4. Set redirect URL: `https://frog.newbold.cloud/auth/callback`
+
+### Email Settings
+1. Go to Authentication → Settings → Email
+2. Enable "Confirm email" for new signups
+3. Customize email templates if desired
+
+---
+
 ## 🔄 Last Session Summary
 
-**Date**: January 2, 2026
+**Date**: January 1, 2026
 
 **What was done**:
-1. ✅ Created DailyReminders system for ADD-friendly check-ins
-2. ✅ Added morning reminder with snooze options (15/30/60 min)
-3. ✅ Service Worker v5 with enhanced notification scheduling
-4. ✅ Integrated reminders with energy check-in flow
-5. ✅ Added streak protection notifications
-6. ✅ Motivational messages for ADD brains
+1. ✅ Created AuthContext for Supabase authentication
+2. ✅ Created LoginModal with glass design + OAuth buttons
+3. ✅ Created UserProfile component for account display
+4. ✅ Created auth callback page for OAuth redirects
+5. ✅ Updated layout.jsx with AuthProvider
+6. ✅ Updated supabase.js with auth-aware functions
+7. ✅ Added auto-migration of local data to cloud on sign in
 
 **Files Created**:
-- `src/components/DailyReminders.jsx` - Complete reminder system
+- `src/components/AuthContext.jsx` - Auth state management
+- `src/components/LoginModal.jsx` - Login/signup UI
+- `src/components/UserProfile.jsx` - Account display
+- `src/app/auth/callback/page.jsx` - OAuth callback
 
 **Files Updated**:
-- `public/sw.js` - v5 with daily check-in scheduling
-- `src/app/page.jsx` - Integrated DailyReminders
+- `src/app/layout.jsx` - Added AuthProvider + LoginModal
+- `src/lib/supabase.js` - Auth-aware helper functions
 
 **Commits this session**:
-- `af43dc5e` - feat: Add DailyReminders system for ADD-friendly check-ins
-- `f604d863` - feat: Service worker v5 - Enhanced daily reminder notifications
-- `315f81ca` - feat: Integrate DailyReminders for compassionate morning check-ins
+- `feat: Add AuthContext for Supabase authentication 🔐`
+- `feat: Add LoginModal with glass design + OAuth 🎨`
+- `feat: Add UserProfile component for account display 👤`
+- `feat: Add OAuth callback page for auth redirects 🔄`
+- `feat: Add AuthProvider + LoginModal to layout 🔐`
+- `feat: Update Supabase client with auth-aware functions ☁️`
 
 ---
 
@@ -170,11 +216,13 @@ public/
 When continuing this project:
 1. Check this file first for current status
 2. App uses **liquid glass** design system with 10 themes
-3. Backgrounds stored in localStorage (`frog_backgrounds`)
-4. Daily reminders use service worker for scheduling
-5. Always test notifications on mobile devices
-6. Energy check-in now records to reminder system
-7. Achievements unlock with sound + haptic feedback
+3. **Auth system is now in place** - needs Supabase provider config
+4. UserProfile needs to be integrated into settings modal in page.jsx
+5. Backgrounds stored in localStorage (`frog_backgrounds`)
+6. Daily reminders use service worker for scheduling
+7. Always test notifications on mobile devices
+8. Energy check-in now records to reminder system
+9. Achievements unlock with sound + haptic feedback
 
 ---
 
@@ -197,4 +245,4 @@ When continuing this project:
 
 ---
 
-*Last updated: January 2, 2026*
+*Last updated: January 1, 2026*
