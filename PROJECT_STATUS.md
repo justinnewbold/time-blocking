@@ -8,6 +8,8 @@
 |------|-------|
 | **Live App** | https://frog.newbold.cloud |
 | **Stats Dashboard** | https://frog.newbold.cloud/stats |
+| **Calendar** | https://frog.newbold.cloud/calendar |
+| **Achievements** | https://frog.newbold.cloud/achievements |
 | **GitHub Repo** | https://github.com/justinnewbold/time-blocking |
 | **Vercel Dashboard** | https://vercel.com/newbold-cloud/time-blocking |
 | **Supabase Dashboard** | https://supabase.com/dashboard/project/wektbfkzbxvtxsremnnk |
@@ -24,66 +26,83 @@
 - [x] Gamification (XP, levels, streaks)
 - [x] Supabase cloud sync
 - [x] PWA support (installable)
+- [x] Recurring tasks (daily, weekly, etc.)
 
-### UI/UX ✨ NEW
+### UI/UX
 - [x] **iOS Liquid Glass Design** - Complete UI overhaul
-- [x] **Customizable Majestic Backgrounds** - 8 stunning options
+- [x] **10 Themes** - 5 light + 5 dark themes
+- [x] **Theme-aware backgrounds** - Auto-switch for light/dark
+- [x] **Customizable Backgrounds** - 8 stunning options
 - [x] **Per-Page Backgrounds** - Different themes for each screen
 - [x] **Glass Icons & Cards** - Frosted glass effect throughout
-- [x] **Animated Stars Overlay** - Toggle on/off
 - [x] **iOS-Style Tab Bar** - Native feel navigation
-- [x] **Floating Action Buttons** - Glass styled
+- [x] **Swipeable Tab Views** - Gesture navigation
 
-### Notifications
-- [x] Timer completion push notifications
-- [x] Sound effects on completion
-- [x] Vibration patterns
-- [x] Notification settings panel
+### ADD/ADHD-Specific Features ✨
+- [x] **Mood Tracking** - Change energy throughout the day
+- [x] **Subtasks with Dopamine Hits** - 2 XP per subtask
+- [x] **Quick Wins Filter** - Show only 5-15 min tasks
+- [x] **Daily Top 3** - Pick your most important tasks
+- [x] **Thought Dump** - Capture fleeting thoughts during focus
+- [x] **Streak Calendar** - GitHub-style contribution graph
+- [x] **Time Estimates** - Track estimated vs actual time
 
-### Stats Dashboard
-- [x] Weekly XP chart
-- [x] Category breakdown
-- [x] 14-day streak calendar
-- [x] Level progress display
+### Notifications & Reminders 🔔 NEW
+- [x] **Daily Check-in Reminders** - Morning nudges with snooze
+- [x] **Timer Completion Notifications** - Push + sound + vibration
+- [x] **Streak Protection Alerts** - Save your streak
+- [x] **Service Worker v5** - Enhanced notification scheduling
+
+### Achievements System 🏆
+- [x] 30+ achievement badges
+- [x] Categories: tasks, frogs, streaks, time, accuracy, XP, subtasks
+- [x] Unlockable with sound + haptic feedback
+- [x] Achievement progress tracking
 
 ---
 
-## 🎨 Available Backgrounds
+## 🎨 Available Themes
 
-| Name | Emoji | Best For |
-|------|-------|----------|
-| Aurora | 🌌 | Relaxed focus |
-| Northern Lights | ✨ | Evening sessions |
-| Sunset | 🌅 | Wind down |
-| Ocean | 🌊 | Calm productivity |
-| Forest | 🌲 | **Default Home** |
-| Cosmos | 🪐 | **Default Stats** |
-| Midnight | 🌙 | Late night work |
-| Rose | 🌹 | Romantic mood |
+### Light Themes ☀️
+| Name | Description |
+|------|-------------|
+| Light | Clean white |
+| Sky | Bright blue |
+| Peach | Warm orange |
+| Mint | Fresh green |
+| Lavender | Soft purple |
+
+### Dark Themes 🌙
+| Name | Description |
+|------|-------------|
+| Dark | Pure dark |
+| Midnight | Deep blue |
+| Sunset | Warm orange |
+| Ocean | Calm teal |
+| Forest | Nature green |
 
 ---
 
 ## 📋 To-Do List
 
 ### 🔴 Priority 1 - Next Up
-- [ ] **Daily Check-in Reminders** - Morning push notifications
 - [ ] **Authentication** - Supabase Auth login
-
-### 🟠 Priority 2 - High Impact
-- [ ] **Recurring Tasks** - Daily/weekly repeat
 - [ ] **Apple Reminders Sync** - Two-way sync
 
-### 🟡 Priority 3 - Medium
+### 🟠 Priority 2 - High Impact
 - [ ] **Google Calendar** - Auto-block time
-- [ ] **Due Dates** - Task deadlines
+- [ ] **Due Dates with Notifications** - Task deadlines
 - [ ] **Sound Effects Library** - More audio options
+
+### 🟡 Priority 3 - Medium
+- [ ] **Widget Support** - iOS/Android widgets
+- [ ] **Siri Shortcuts** - Voice integration
+- [ ] **Family Sharing** - Share tasks
 
 ### 🟢 Priority 4 - Future
 - [ ] Apple Watch App
-- [ ] Siri Shortcuts
-- [ ] Family Sharing
-- [ ] Achievements System
-- [ ] Widget Support
+- [ ] AI Task Suggestions
+- [ ] Team/Collaboration Features
 
 ---
 
@@ -92,25 +111,29 @@
 ```
 src/
 ├── app/
-│   ├── page.jsx          # Main app (liquid glass UI)
-│   ├── layout.jsx        # Root layout with BackgroundProvider
-│   ├── globals.css       # Liquid glass design system
-│   ├── stats/
-│   │   └── page.jsx      # Stats Dashboard
-│   └── offline/
-│       └── page.jsx      # Offline fallback
+│   ├── page.jsx              # Main app (2640+ lines)
+│   ├── layout.jsx            # Root layout with providers
+│   ├── globals.css           # Liquid glass design system
+│   ├── stats/page.jsx        # Stats Dashboard
+│   ├── calendar/page.jsx     # Calendar view
+│   ├── achievements/page.jsx # Achievements page
+│   └── offline/page.jsx      # Offline fallback
 ├── components/
-│   ├── BackgroundContext.jsx   # 🆕 Background theming
-│   ├── BackgroundSelector.jsx  # 🆕 Background picker UI
-│   ├── InstallPrompt.jsx
-│   ├── ServiceWorkerRegister.jsx
-│   └── NotificationManager.jsx
+│   ├── BackgroundContext.jsx      # Background theming
+│   ├── BackgroundSelector.jsx     # Background picker
+│   ├── AchievementsContext.jsx    # Achievement system
+│   ├── AchievementBadge.jsx       # Badge components
+│   ├── DailyReminders.jsx         # 🆕 Morning check-in system
+│   ├── ThemeProvider.jsx          # Theme management
+│   ├── NotificationManager.jsx    # Push notifications
+│   ├── SwipeableTabView.jsx       # Gesture navigation
+│   ├── FrogCharacter.jsx          # Evolution system
+│   └── ...more
 ├── lib/
 │   └── supabase.js
 public/
 ├── manifest.json
-├── sw.js (v4)
-├── icon.svg
+├── sw.js (v5)                     # 🆕 Enhanced service worker
 └── icons/
 ```
 
@@ -118,34 +141,27 @@ public/
 
 ## 🔄 Last Session Summary
 
-**Date**: December 31, 2025
+**Date**: January 2, 2026
 
 **What was done**:
-1. ✅ Complete iOS Liquid Glass UI redesign
-2. ✅ Added 8 majestic backgrounds (aurora, northern lights, sunset, ocean, forest, cosmos, midnight, rose)
-3. ✅ Per-page background customization
-4. ✅ Glass icons, cards, buttons throughout
-5. ✅ Animated star overlay (toggle)
-6. ✅ iOS-style tab bar navigation
-7. ✅ Background selector modal
+1. ✅ Created DailyReminders system for ADD-friendly check-ins
+2. ✅ Added morning reminder with snooze options (15/30/60 min)
+3. ✅ Service Worker v5 with enhanced notification scheduling
+4. ✅ Integrated reminders with energy check-in flow
+5. ✅ Added streak protection notifications
+6. ✅ Motivational messages for ADD brains
 
 **Files Created**:
-- `src/components/BackgroundContext.jsx` - Theme management
-- `src/components/BackgroundSelector.jsx` - Background picker UI
+- `src/components/DailyReminders.jsx` - Complete reminder system
 
 **Files Updated**:
-- `src/app/globals.css` - Liquid glass design system (505 lines)
-- `src/app/layout.jsx` - BackgroundProvider wrapper
-- `src/app/page.jsx` - Complete glass UI redesign (952 lines)
-- `src/app/stats/page.jsx` - Glass UI redesign (385 lines)
+- `public/sw.js` - v5 with daily check-in scheduling
+- `src/app/page.jsx` - Integrated DailyReminders
 
 **Commits this session**:
-- `f71595f7` - feat: Add iOS liquid glass design system
-- `f574611d` - feat: Add BackgroundContext
-- `af094f68` - feat: Add BackgroundSelector
-- `cc1687be` - feat: Wrap app with BackgroundProvider
-- `8570f9d5` - feat: Complete iOS liquid glass UI redesign
-- `a069ed97` - feat: Stats page liquid glass redesign
+- `af43dc5e` - feat: Add DailyReminders system for ADD-friendly check-ins
+- `f604d863` - feat: Service worker v5 - Enhanced daily reminder notifications
+- `315f81ca` - feat: Integrate DailyReminders for compassionate morning check-ins
 
 ---
 
@@ -153,12 +169,12 @@ public/
 
 When continuing this project:
 1. Check this file first for current status
-2. App uses **liquid glass** design system
+2. App uses **liquid glass** design system with 10 themes
 3. Backgrounds stored in localStorage (`frog_backgrounds`)
-4. Use `glass-card`, `glass-button`, `glass-icon` CSS classes
-5. Each page can have different background via BackgroundContext
-6. Theme colors are now frosted glass (not solid green)
-7. Always test on mobile for glass effects
+4. Daily reminders use service worker for scheduling
+5. Always test notifications on mobile devices
+6. Energy check-in now records to reminder system
+7. Achievements unlock with sound + haptic feedback
 
 ---
 
@@ -175,11 +191,10 @@ When continuing this project:
 | `glass-icon-sm` | Icon container (small) |
 | `glass-input` | Input field styling |
 | `liquid-shine` | Shine animation on hover |
-| `bg-{name}` | Background themes |
-| `stars` | Animated stars overlay |
-| `animate-float` | Floating animation |
-| `animate-pulse-glow` | Glowing pulse |
+| `animate-fade-in` | Fade in animation |
+| `animate-scale-in` | Scale + fade animation |
+| `animate-bounce-slow` | Slow bounce (for frog) |
 
 ---
 
-*Last updated: December 31, 2025*
+*Last updated: January 2, 2026*
