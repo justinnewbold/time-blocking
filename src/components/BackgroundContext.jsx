@@ -1,8 +1,9 @@
 'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useTheme } from './ThemeProvider';
 
-// Available majestic backgrounds
-export const BACKGROUNDS = {
+// Dark mode backgrounds
+export const DARK_BACKGROUNDS = {
   aurora: {
     name: 'Aurora',
     class: 'bg-aurora',
@@ -53,28 +54,105 @@ export const BACKGROUNDS = {
   }
 };
 
+// Light mode backgrounds
+export const LIGHT_BACKGROUNDS = {
+  sky: {
+    name: 'Sky',
+    class: 'bg-light-sky',
+    preview: 'linear-gradient(180deg, #e0f2fe, #f0f9ff)',
+    emoji: '☁️'
+  },
+  peach: {
+    name: 'Peach',
+    class: 'bg-light-peach',
+    preview: 'linear-gradient(180deg, #fef3e2, #fff7ed)',
+    emoji: '🍑'
+  },
+  mint: {
+    name: 'Mint',
+    class: 'bg-light-mint',
+    preview: 'linear-gradient(180deg, #d1fae5, #ecfdf5)',
+    emoji: '🌿'
+  },
+  lavender: {
+    name: 'Lavender',
+    class: 'bg-light-lavender',
+    preview: 'linear-gradient(180deg, #ede9fe, #f5f3ff)',
+    emoji: '💜'
+  },
+  rose: {
+    name: 'Rose',
+    class: 'bg-light-rose',
+    preview: 'linear-gradient(180deg, #ffe4e6, #fff1f2)',
+    emoji: '🌸'
+  },
+  cream: {
+    name: 'Cream',
+    class: 'bg-light-cream',
+    preview: 'linear-gradient(180deg, #fef9c3, #fefce8)',
+    emoji: '🍦'
+  },
+  silver: {
+    name: 'Silver',
+    class: 'bg-light-silver',
+    preview: 'linear-gradient(180deg, #e5e7eb, #f3f4f6)',
+    emoji: '🪙'
+  },
+  ocean: {
+    name: 'Ocean',
+    class: 'bg-light-ocean',
+    preview: 'linear-gradient(180deg, #cffafe, #ecfeff)',
+    emoji: '🐚'
+  }
+};
+
+// Combined for backwards compatibility
+export const BACKGROUNDS = { ...DARK_BACKGROUNDS };
+
 // Default backgrounds per page
-const DEFAULT_BACKGROUNDS = {
+const DEFAULT_DARK_BACKGROUNDS = {
   home: 'forest',
   stats: 'cosmos',
   settings: 'midnight'
 };
 
+const DEFAULT_LIGHT_BACKGROUNDS = {
+  home: 'mint',
+  stats: 'lavender',
+  settings: 'silver'
+};
+
 const BackgroundContext = createContext();
 
 export function BackgroundProvider({ children }) {
-  const [backgrounds, setBackgrounds] = useState(DEFAULT_BACKGROUNDS);
+  const { isDark } = useTheme();
+  const [darkBackgrounds, setDarkBackgrounds] = useState(DEFAULT_DARK_BACKGROUNDS);
+  const [lightBackgrounds, setLightBackgrounds] = useState(DEFAULT_LIGHT_BACKGROUNDS);
   const [showStars, setShowStars] = useState(true);
   const [loaded, setLoaded] = useState(false);
 
   // Load from localStorage on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('frog_backgrounds');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setBackgrounds(prev => ({ ...prev, ...parsed }));
+      const savedDark = localStorage.getItem('frog_dark_backgrounds');
+      if (savedDark) {
+        const parsed = JSON.parse(savedDark);
+        setDarkBackgrounds(prev => ({ ...prev, ...parsed }));
       }
+      
+      const savedLight = localStorage.getItem('frog_light_backgrounds');
+      if (savedLight) {
+        const parsed = JSON.parse(savedLight);
+        setLightBackgrounds(prev => ({ ...prev, ...parsed }));
+      }
+      
+      // Legacy migration
+      const savedOld = localStorage.getItem('frog_backgrounds');
+      if (savedOld && !savedDark) {
+        const parsed = JSON.parse(savedOld);
+        setDarkBackgrounds(prev => ({ ...prev, ...parsed }));
+      }
+      
       const savedStars = localStorage.getItem('frog_show_stars');
       if (savedStars !== null) {
         setShowStars(JSON.parse(savedStars));
@@ -88,27 +166,43 @@ export function BackgroundProvider({ children }) {
   // Save to localStorage when changed
   useEffect(() => {
     if (loaded) {
-      localStorage.setItem('frog_backgrounds', JSON.stringify(backgrounds));
+      localStorage.setItem('frog_dark_backgrounds', JSON.stringify(darkBackgrounds));
+      localStorage.setItem('frog_light_backgrounds', JSON.stringify(lightBackgrounds));
       localStorage.setItem('frog_show_stars', JSON.stringify(showStars));
     }
-  }, [backgrounds, showStars, loaded]);
+  }, [darkBackgrounds, lightBackgrounds, showStars, loaded]);
 
   const setPageBackground = (page, bgKey) => {
-    setBackgrounds(prev => ({ ...prev, [page]: bgKey }));
+    if (isDark) {
+      setDarkBackgrounds(prev => ({ ...prev, [page]: bgKey }));
+    } else {
+      setLightBackgrounds(prev => ({ ...prev, [page]: bgKey }));
+    }
   };
 
   const getPageBackground = (page) => {
-    return BACKGROUNDS[backgrounds[page]] || BACKGROUNDS.forest;
+    if (isDark) {
+      return DARK_BACKGROUNDS[darkBackgrounds[page]] || DARK_BACKGROUNDS.forest;
+    } else {
+      return LIGHT_BACKGROUNDS[lightBackgrounds[page]] || LIGHT_BACKGROUNDS.mint;
+    }
+  };
+  
+  const getCurrentBackgrounds = () => {
+    return isDark ? DARK_BACKGROUNDS : LIGHT_BACKGROUNDS;
   };
 
   return (
     <BackgroundContext.Provider value={{
-      backgrounds,
+      backgrounds: isDark ? darkBackgrounds : lightBackgrounds,
       setPageBackground,
       getPageBackground,
       showStars,
       setShowStars,
-      BACKGROUNDS
+      BACKGROUNDS: getCurrentBackgrounds(),
+      DARK_BACKGROUNDS,
+      LIGHT_BACKGROUNDS,
+      isDark
     }}>
       {children}
     </BackgroundContext.Provider>
@@ -125,7 +219,7 @@ export function useBackground() {
 
 // Background wrapper component
 export function PageBackground({ page, children }) {
-  const { getPageBackground, showStars } = useBackground();
+  const { getPageBackground, showStars, isDark } = useBackground();
   const bg = getPageBackground(page);
   
   return (
@@ -133,8 +227,8 @@ export function PageBackground({ page, children }) {
       {/* Animated gradient overlay */}
       <div className="absolute inset-0 pointer-events-none" />
       
-      {/* Stars overlay */}
-      {showStars && <div className="stars pointer-events-none" />}
+      {/* Stars overlay - only in dark mode */}
+      {showStars && isDark && <div className="stars pointer-events-none" />}
       
       {/* Content */}
       <div className="relative z-10">
