@@ -22,6 +22,7 @@ import { TapToReorderList, useReorderableList } from '@/components/DraggableTask
 import WidgetPreview from '@/components/WidgetPreview';
 import SwipeableTabView from '@/components/SwipeableTabView';
 import { useDailyReminders, ReminderModal, ReminderSettings } from '@/components/DailyReminders';
+import AppleRemindersSync from '@/components/AppleRemindersSync';
 
 // Categories - now uses dynamic categories from CategoryManager
 // Default categories are defined in CategoryManager.jsx
@@ -2302,6 +2303,14 @@ export default function Frog() {
                 </div>
                 
                 {/* Reminders Section */}
+                {/* Apple Reminders Sync Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">🍎 Apple Reminders</h3>
+                  <div className="glass-card-inner p-4 bg-white/5 rounded-xl">
+                    <AppleRemindersSync userId={userId} onSyncComplete={() => loadTasks()} />
+                  </div>
+                </div>
+                
                 {/* Scheduled Reminders Section */}
                 <div className="mb-6">
                   <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">🔔 Scheduled Reminders</h3>
