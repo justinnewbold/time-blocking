@@ -20,9 +20,14 @@ CREATE TABLE IF NOT EXISTS focusflow_tasks (
   xp_earned INTEGER DEFAULT 0,
   notes TEXT,
   apple_reminder_id TEXT UNIQUE,
+  due_date TIMESTAMPTZ,
+  due_date_reminder TEXT DEFAULT 'none',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Index for due date queries
+CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON focusflow_tasks(due_date);
 
 -- Index for faster queries
 CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON focusflow_tasks(user_id);
