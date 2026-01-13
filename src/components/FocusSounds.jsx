@@ -4,54 +4,157 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 // Ambient sound types using Web Audio API
 const SOUND_TYPES = [
-  { 
-    id: 'none', 
-    name: 'None', 
+  {
+    id: 'none',
+    name: 'None',
     emoji: '🔇',
-    description: 'Silence'
+    description: 'Silence',
+    category: 'basic'
   },
-  { 
-    id: 'rain', 
-    name: 'Rain', 
+  {
+    id: 'rain',
+    name: 'Rain',
     emoji: '🌧️',
-    description: 'Gentle rainfall'
+    description: 'Gentle rainfall',
+    category: 'nature'
   },
-  { 
-    id: 'whitenoise', 
-    name: 'White Noise', 
+  {
+    id: 'whitenoise',
+    name: 'White Noise',
     emoji: '📻',
-    description: 'Static hum'
+    description: 'Static hum',
+    category: 'noise'
   },
-  { 
-    id: 'brownnoise', 
-    name: 'Brown Noise', 
+  {
+    id: 'brownnoise',
+    name: 'Brown Noise',
     emoji: '🌊',
-    description: 'Deep rumble'
+    description: 'Deep rumble',
+    category: 'noise'
   },
-  { 
-    id: 'pinknoise', 
-    name: 'Pink Noise', 
+  {
+    id: 'pinknoise',
+    name: 'Pink Noise',
     emoji: '🌸',
-    description: 'Balanced static'
+    description: 'Balanced static',
+    category: 'noise'
   },
-  { 
-    id: 'forest', 
-    name: 'Forest', 
+  {
+    id: 'forest',
+    name: 'Forest',
     emoji: '🌲',
-    description: 'Nature sounds'
+    description: 'Nature sounds',
+    category: 'nature'
   },
-  { 
-    id: 'lofi', 
-    name: 'Lo-Fi Beats', 
+  {
+    id: 'lofi',
+    name: 'Lo-Fi Beats',
     emoji: '🎵',
-    description: 'Chill vibes'
+    description: 'Chill vibes',
+    category: 'music'
   },
-  { 
-    id: 'fireplace', 
-    name: 'Fireplace', 
+  {
+    id: 'fireplace',
+    name: 'Fireplace',
     emoji: '🔥',
-    description: 'Crackling fire'
+    description: 'Crackling fire',
+    category: 'nature'
+  },
+  // New sounds
+  {
+    id: 'ocean',
+    name: 'Ocean Waves',
+    emoji: '🌊',
+    description: 'Calming waves',
+    category: 'nature'
+  },
+  {
+    id: 'thunderstorm',
+    name: 'Thunderstorm',
+    emoji: '⛈️',
+    description: 'Rain & thunder',
+    category: 'nature'
+  },
+  {
+    id: 'coffeeshop',
+    name: 'Coffee Shop',
+    emoji: '☕',
+    description: 'Ambient cafe',
+    category: 'ambient'
+  },
+  {
+    id: 'binaural',
+    name: 'Binaural Focus',
+    emoji: '🧠',
+    description: 'Focus frequency',
+    category: 'focus'
+  },
+  {
+    id: 'wind',
+    name: 'Wind',
+    emoji: '💨',
+    description: 'Gentle breeze',
+    category: 'nature'
+  },
+  {
+    id: 'birds',
+    name: 'Birds',
+    emoji: '🐦',
+    description: 'Morning birds',
+    category: 'nature'
+  },
+  {
+    id: 'stream',
+    name: 'Stream',
+    emoji: '🏞️',
+    description: 'Flowing water',
+    category: 'nature'
+  },
+  {
+    id: 'train',
+    name: 'Train',
+    emoji: '🚂',
+    description: 'Rhythmic tracks',
+    category: 'ambient'
+  },
+  {
+    id: 'airplane',
+    name: 'Airplane',
+    emoji: '✈️',
+    description: 'Cabin noise',
+    category: 'ambient'
+  },
+  {
+    id: 'fan',
+    name: 'Fan',
+    emoji: '🌀',
+    description: 'Steady hum',
+    category: 'noise'
+  },
+  {
+    id: 'meditation',
+    name: 'Meditation',
+    emoji: '🧘',
+    description: 'Peaceful tones',
+    category: 'focus'
+  },
+  {
+    id: 'library',
+    name: 'Library',
+    emoji: '📚',
+    description: 'Quiet study',
+    category: 'ambient'
   }
+];
+
+// Sound categories for filtering
+const SOUND_CATEGORIES = [
+  { id: 'all', name: 'All', emoji: '🎧' },
+  { id: 'nature', name: 'Nature', emoji: '🌿' },
+  { id: 'noise', name: 'Noise', emoji: '📻' },
+  { id: 'ambient', name: 'Ambient', emoji: '🏙️' },
+  { id: 'focus', name: 'Focus', emoji: '🎯' },
+  { id: 'music', name: 'Music', emoji: '🎵' }
 ];
 
 // Audio generation functions
@@ -410,9 +513,614 @@ class AmbientSoundGenerator {
     return masterGain;
   }
 
+  // Ocean waves
+  createOcean(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.5;
+    masterGain.connect(ctx.destination);
+
+    // Base wave noise
+    const bufferSize = 4 * ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      data[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = data[i];
+      data[i] *= 3.5;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    // Wave modulation LFO
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.1;
+
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 0.3;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 400;
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+
+    source.connect(filter);
+    filter.connect(masterGain);
+    source.start();
+    lfo.start();
+
+    this.nodes.push(source, lfo, lfoGain, filter, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Thunderstorm
+  createThunderstorm(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.5;
+    masterGain.connect(ctx.destination);
+
+    // Heavy rain base
+    const bufferSize = 2 * ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 3000;
+
+    const rainGain = ctx.createGain();
+    rainGain.gain.value = 0.5;
+
+    source.connect(filter);
+    filter.connect(rainGain);
+    rainGain.connect(masterGain);
+    source.start();
+
+    // Distant rumble
+    const rumbleOsc = ctx.createOscillator();
+    rumbleOsc.type = 'sine';
+    rumbleOsc.frequency.value = 40;
+
+    const rumbleGain = ctx.createGain();
+    rumbleGain.gain.value = 0.1;
+
+    rumbleOsc.connect(rumbleGain);
+    rumbleGain.connect(masterGain);
+    rumbleOsc.start();
+
+    this.nodes.push(source, filter, rainGain, rumbleOsc, rumbleGain, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Coffee shop ambiance
+  createCoffeeShop(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.4;
+    masterGain.connect(ctx.destination);
+
+    // Low murmur (filtered noise)
+    const murmurBuffer = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+    const murmurData = murmurBuffer.getChannelData(0);
+    for (let i = 0; i < murmurData.length; i++) {
+      murmurData[i] = (Math.random() * 2 - 1) * 0.3;
+    }
+    const murmurSource = ctx.createBufferSource();
+    murmurSource.buffer = murmurBuffer;
+    murmurSource.loop = true;
+
+    const murmurFilter = ctx.createBiquadFilter();
+    murmurFilter.type = 'bandpass';
+    murmurFilter.frequency.value = 400;
+    murmurFilter.Q.value = 0.7;
+
+    const murmurGain = ctx.createGain();
+    murmurGain.gain.value = 0.6;
+
+    murmurSource.connect(murmurFilter);
+    murmurFilter.connect(murmurGain);
+    murmurGain.connect(masterGain);
+    murmurSource.start();
+
+    // Occasional clinks (sparse noise)
+    const clinkBuffer = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
+    const clinkData = clinkBuffer.getChannelData(0);
+    for (let i = 0; i < clinkData.length; i++) {
+      if (Math.random() > 0.9995) {
+        for (let j = 0; j < 200 && i + j < clinkData.length; j++) {
+          clinkData[i + j] = Math.sin(j * 0.3) * Math.exp(-j / 50) * 0.3;
+        }
+      }
+    }
+    const clinkSource = ctx.createBufferSource();
+    clinkSource.buffer = clinkBuffer;
+    clinkSource.loop = true;
+
+    const clinkFilter = ctx.createBiquadFilter();
+    clinkFilter.type = 'highpass';
+    clinkFilter.frequency.value = 2000;
+
+    clinkSource.connect(clinkFilter);
+    clinkFilter.connect(masterGain);
+    clinkSource.start();
+
+    this.nodes.push(murmurSource, murmurFilter, murmurGain, clinkSource, clinkFilter, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Binaural beats for focus (40Hz gamma)
+  createBinaural(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.3;
+    masterGain.connect(ctx.destination);
+
+    // Left ear: 200Hz
+    const leftOsc = ctx.createOscillator();
+    leftOsc.type = 'sine';
+    leftOsc.frequency.value = 200;
+
+    const leftPanner = ctx.createStereoPanner();
+    leftPanner.pan.value = -1;
+
+    const leftGain = ctx.createGain();
+    leftGain.gain.value = 0.5;
+
+    leftOsc.connect(leftGain);
+    leftGain.connect(leftPanner);
+    leftPanner.connect(masterGain);
+
+    // Right ear: 240Hz (40Hz difference for gamma waves)
+    const rightOsc = ctx.createOscillator();
+    rightOsc.type = 'sine';
+    rightOsc.frequency.value = 240;
+
+    const rightPanner = ctx.createStereoPanner();
+    rightPanner.pan.value = 1;
+
+    const rightGain = ctx.createGain();
+    rightGain.gain.value = 0.5;
+
+    rightOsc.connect(rightGain);
+    rightGain.connect(rightPanner);
+    rightPanner.connect(masterGain);
+
+    leftOsc.start();
+    rightOsc.start();
+
+    this.nodes.push(leftOsc, leftGain, leftPanner, rightOsc, rightGain, rightPanner, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Wind
+  createWind(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.4;
+    masterGain.connect(ctx.destination);
+
+    const bufferSize = 4 * ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    // Modulating filter for wind gusts
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 500;
+    filter.Q.value = 0.5;
+
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.15;
+
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 300;
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+
+    source.connect(filter);
+    filter.connect(masterGain);
+    source.start();
+    lfo.start();
+
+    this.nodes.push(source, filter, lfo, lfoGain, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Birds
+  createBirds(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.4;
+    masterGain.connect(ctx.destination);
+
+    // Background ambient
+    const ambientBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const ambientData = ambientBuffer.getChannelData(0);
+    for (let i = 0; i < ambientData.length; i++) {
+      ambientData[i] = (Math.random() * 2 - 1) * 0.05;
+    }
+    const ambientSource = ctx.createBufferSource();
+    ambientSource.buffer = ambientBuffer;
+    ambientSource.loop = true;
+    ambientSource.connect(masterGain);
+    ambientSource.start();
+
+    // Bird chirps (modulated oscillators)
+    for (let b = 0; b < 3; b++) {
+      const birdOsc = ctx.createOscillator();
+      birdOsc.type = 'sine';
+      birdOsc.frequency.value = 2000 + Math.random() * 2000;
+
+      const birdGain = ctx.createGain();
+      birdGain.gain.value = 0;
+
+      const tremolo = ctx.createOscillator();
+      tremolo.frequency.value = 8 + Math.random() * 8;
+
+      const tremoloGain = ctx.createGain();
+      tremoloGain.gain.value = 0.15;
+
+      tremolo.connect(tremoloGain);
+      tremoloGain.connect(birdGain.gain);
+
+      birdOsc.connect(birdGain);
+      birdGain.connect(masterGain);
+
+      birdOsc.start();
+      tremolo.start();
+
+      this.nodes.push(birdOsc, birdGain, tremolo, tremoloGain);
+    }
+
+    this.nodes.push(ambientSource, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Stream/Creek
+  createStream(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.5;
+    masterGain.connect(ctx.destination);
+
+    // Flowing water noise
+    const bufferSize = 2 * ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    const highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 200;
+
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 4000;
+
+    // Modulation for babbling effect
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.5;
+
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 500;
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(lowpass.frequency);
+
+    source.connect(highpass);
+    highpass.connect(lowpass);
+    lowpass.connect(masterGain);
+    source.start();
+    lfo.start();
+
+    this.nodes.push(source, highpass, lowpass, lfo, lfoGain, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Train
+  createTrain(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.4;
+    masterGain.connect(ctx.destination);
+
+    // Base rumble
+    const rumbleBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const rumbleData = rumbleBuffer.getChannelData(0);
+    let lastOut = 0;
+    for (let i = 0; i < rumbleData.length; i++) {
+      const white = Math.random() * 2 - 1;
+      rumbleData[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = rumbleData[i];
+      rumbleData[i] *= 3;
+    }
+    const rumbleSource = ctx.createBufferSource();
+    rumbleSource.buffer = rumbleBuffer;
+    rumbleSource.loop = true;
+
+    const rumbleFilter = ctx.createBiquadFilter();
+    rumbleFilter.type = 'lowpass';
+    rumbleFilter.frequency.value = 150;
+
+    rumbleSource.connect(rumbleFilter);
+    rumbleFilter.connect(masterGain);
+    rumbleSource.start();
+
+    // Rhythmic click-clack
+    const clickBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const clickData = clickBuffer.getChannelData(0);
+    const clickInterval = Math.floor(ctx.sampleRate * 0.8);
+    for (let i = 0; i < clickData.length; i++) {
+      if (i % clickInterval < 100) {
+        clickData[i] = Math.random() * 0.3 * Math.exp(-(i % clickInterval) / 20);
+      }
+    }
+    const clickSource = ctx.createBufferSource();
+    clickSource.buffer = clickBuffer;
+    clickSource.loop = true;
+
+    const clickFilter = ctx.createBiquadFilter();
+    clickFilter.type = 'bandpass';
+    clickFilter.frequency.value = 800;
+
+    clickSource.connect(clickFilter);
+    clickFilter.connect(masterGain);
+    clickSource.start();
+
+    this.nodes.push(rumbleSource, rumbleFilter, clickSource, clickFilter, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Airplane cabin
+  createAirplane(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.5;
+    masterGain.connect(ctx.destination);
+
+    // Engine drone
+    const bufferSize = 2 * ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      data[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = data[i];
+      data[i] *= 3;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 500;
+
+    source.connect(filter);
+    filter.connect(masterGain);
+    source.start();
+
+    // High frequency air circulation
+    const airBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const airData = airBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      airData[i] = Math.random() * 2 - 1;
+    }
+    const airSource = ctx.createBufferSource();
+    airSource.buffer = airBuffer;
+    airSource.loop = true;
+
+    const airFilter = ctx.createBiquadFilter();
+    airFilter.type = 'bandpass';
+    airFilter.frequency.value = 4000;
+    airFilter.Q.value = 2;
+
+    const airGain = ctx.createGain();
+    airGain.gain.value = 0.1;
+
+    airSource.connect(airFilter);
+    airFilter.connect(airGain);
+    airGain.connect(masterGain);
+    airSource.start();
+
+    this.nodes.push(source, filter, airSource, airFilter, airGain, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Fan
+  createFan(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.4;
+    masterGain.connect(ctx.destination);
+
+    const bufferSize = 2 * ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    // Blade modulation
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 3;
+
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 0.1;
+
+    const gainMod = ctx.createGain();
+    gainMod.gain.value = 0.5;
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(gainMod.gain);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 300;
+    filter.Q.value = 0.7;
+
+    source.connect(filter);
+    filter.connect(gainMod);
+    gainMod.connect(masterGain);
+    source.start();
+    lfo.start();
+
+    this.nodes.push(source, filter, lfo, lfoGain, gainMod, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Meditation tones
+  createMeditation(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.3;
+    masterGain.connect(ctx.destination);
+
+    // Singing bowl frequencies
+    const frequencies = [261.63, 329.63, 392]; // C, E, G
+
+    frequencies.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+
+      const gain = ctx.createGain();
+      gain.gain.value = 0.3 / frequencies.length;
+
+      // Slow tremolo
+      const tremolo = ctx.createOscillator();
+      tremolo.frequency.value = 0.1 + i * 0.05;
+
+      const tremoloGain = ctx.createGain();
+      tremoloGain.gain.value = 0.1;
+
+      tremolo.connect(tremoloGain);
+      tremoloGain.connect(gain.gain);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+
+      osc.start();
+      tremolo.start();
+
+      this.nodes.push(osc, gain, tremolo, tremoloGain);
+    });
+
+    this.nodes.push(masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
+  // Library ambiance
+  createLibrary(volume = 0.3) {
+    const ctx = this.init();
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = volume * 0.3;
+    masterGain.connect(ctx.destination);
+
+    // Very quiet background noise
+    const bufferSize = 2 * ctx.sampleRate;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1000;
+
+    const gain = ctx.createGain();
+    gain.gain.value = 0.1;
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(masterGain);
+    source.start();
+
+    // Occasional page turn (very sparse clicks)
+    const pageBuffer = ctx.createBuffer(1, ctx.sampleRate * 8, ctx.sampleRate);
+    const pageData = pageBuffer.getChannelData(0);
+    for (let i = 0; i < pageData.length; i++) {
+      if (Math.random() > 0.9999) {
+        for (let j = 0; j < 300 && i + j < pageData.length; j++) {
+          pageData[i + j] = (Math.random() * 2 - 1) * 0.1 * Math.exp(-j / 100);
+        }
+      }
+    }
+    const pageSource = ctx.createBufferSource();
+    pageSource.buffer = pageBuffer;
+    pageSource.loop = true;
+
+    pageSource.connect(masterGain);
+    pageSource.start();
+
+    this.nodes.push(source, filter, gain, pageSource, masterGain);
+    this.isPlaying = true;
+    return masterGain;
+  }
+
   play(type, volume = 0.3) {
     this.stop();
-    
+
     switch (type) {
       case 'whitenoise':
         return this.createWhiteNoise(volume);
@@ -428,6 +1136,30 @@ class AmbientSoundGenerator {
         return this.createLofi(volume);
       case 'fireplace':
         return this.createFireplace(volume);
+      case 'ocean':
+        return this.createOcean(volume);
+      case 'thunderstorm':
+        return this.createThunderstorm(volume);
+      case 'coffeeshop':
+        return this.createCoffeeShop(volume);
+      case 'binaural':
+        return this.createBinaural(volume);
+      case 'wind':
+        return this.createWind(volume);
+      case 'birds':
+        return this.createBirds(volume);
+      case 'stream':
+        return this.createStream(volume);
+      case 'train':
+        return this.createTrain(volume);
+      case 'airplane':
+        return this.createAirplane(volume);
+      case 'fan':
+        return this.createFan(volume);
+      case 'meditation':
+        return this.createMeditation(volume);
+      case 'library':
+        return this.createLibrary(volume);
       default:
         return null;
     }
@@ -453,7 +1185,13 @@ export default function FocusSounds({ isPlaying, onSoundChange }) {
   const [selectedSound, setSelectedSound] = useState('none');
   const [volume, setVolume] = useState(0.5);
   const [showPicker, setShowPicker] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const gainNodeRef = useRef(null);
+
+  // Filter sounds by category
+  const filteredSounds = selectedCategory === 'all'
+    ? SOUND_TYPES
+    : SOUND_TYPES.filter(s => s.category === selectedCategory || s.id === 'none');
 
   // Handle sound playback
   useEffect(() => {
@@ -544,12 +1282,30 @@ export default function FocusSounds({ isPlaying, onSoundChange }) {
 
       {/* Sound Picker Modal */}
       {showPicker && (
-        <div className="absolute bottom-full left-0 right-0 mb-2 glass-card p-4 animate-slide-up z-50">
+        <div className="absolute bottom-full left-0 right-0 mb-2 glass-card p-4 animate-slide-up z-50 max-h-[70vh] overflow-y-auto">
           <h4 className="text-white font-medium mb-3">🎵 Focus Sounds</h4>
-          
+
+          {/* Category Filter */}
+          <div className="flex gap-1 mb-4 overflow-x-auto pb-2 -mx-1 px-1">
+            {SOUND_CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs whitespace-nowrap flex items-center gap-1 transition-all ${
+                  selectedCategory === cat.id
+                    ? 'bg-green-500/30 text-white'
+                    : 'bg-white/5 text-white/60 hover:bg-white/10'
+                }`}
+              >
+                <span>{cat.emoji}</span>
+                <span>{cat.name}</span>
+              </button>
+            ))}
+          </div>
+
           {/* Sound Options */}
           <div className="grid grid-cols-4 gap-2 mb-4">
-            {SOUND_TYPES.map((sound) => (
+            {filteredSounds.map((sound) => (
               <button
                 key={sound.id}
                 onClick={() => handleSoundSelect(sound.id)}
@@ -597,4 +1353,4 @@ export default function FocusSounds({ isPlaying, onSoundChange }) {
   );
 }
 
-export { SOUND_TYPES, AmbientSoundGenerator, getSoundGenerator };
+export { SOUND_TYPES, SOUND_CATEGORIES, AmbientSoundGenerator, getSoundGenerator };
