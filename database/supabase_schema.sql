@@ -185,3 +185,86 @@ ORDER BY week_start DESC;
 
 -- Print success message
 SELECT 'FocusFlow database schema created successfully!' as status;
+
+-- ============================================
+-- SHARED LISTS (Collaborative Feature)
+-- ============================================
+CREATE TABLE IF NOT EXISTS focusflow_shared_lists (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  share_code TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_shared_lists_owner ON focusflow_shared_lists(owner_id);
+CREATE INDEX IF NOT EXISTS idx_shared_lists_code ON focusflow_shared_lists(share_code);
+
+-- List members table
+CREATE TABLE IF NOT EXISTS focusflow_list_members (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  list_id UUID NOT NULL REFERENCES focusflow_shared_lists(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('owner', 'editor', 'viewer')),
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(list_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_list_members_user ON focusflow_list_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_list_members_list ON focusflow_list_members(list_id);
+
+-- Add shared_list_id to tasks table
+ALTER TABLE focusflow_tasks ADD COLUMN IF NOT EXISTS shared_list_id UUID REFERENCES focusflow_shared_lists(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_tasks_shared_list ON focusflow_tasks(shared_list_id);
+
+-- ============================================
+-- HABITS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS focusflow_habits (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  emoji TEXT DEFAULT '✅',
+  frequency TEXT NOT NULL DEFAULT 'daily',
+  custom_days INTEGER[],
+  reminder_time TIME,
+  streak INTEGER DEFAULT 0,
+  longest_streak INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_habits_user ON focusflow_habits(user_id);
+
+-- Habit completions table
+CREATE TABLE IF NOT EXISTS focusflow_habit_completions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  habit_id UUID NOT NULL REFERENCES focusflow_habits(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  completed_date DATE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(habit_id, completed_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_habit_completions_habit ON focusflow_habit_completions(habit_id);
+CREATE INDEX IF NOT EXISTS idx_habit_completions_date ON focusflow_habit_completions(completed_date);
+
+-- ============================================
+-- TASK TEMPLATES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS focusflow_task_templates (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  emoji TEXT DEFAULT '📋',
+  category TEXT NOT NULL DEFAULT 'personal',
+  tasks JSONB NOT NULL DEFAULT '[]',
+  is_public BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_templates_user ON focusflow_task_templates(user_id);
+CREATE INDEX IF NOT EXISTS idx_templates_public ON focusflow_task_templates(is_public) WHERE is_public = true;
