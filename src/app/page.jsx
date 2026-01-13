@@ -23,6 +23,13 @@ import WidgetPreview from '@/components/WidgetPreview';
 import SwipeableTabView from '@/components/SwipeableTabView';
 import { useDailyReminders, ReminderModal, ReminderSettings } from '@/components/DailyReminders';
 import AppleRemindersSync from '@/components/AppleRemindersSync';
+// New feature imports
+import { useOnboarding, OnboardingModal } from '@/components/Onboarding';
+import { AISuggestionsCard, useAITaskSuggestions } from '@/components/AITaskSuggestions';
+import { DueDatePicker, DueDateBadge, OverdueTasksBanner, useDueDateNotifications } from '@/components/DueDateNotifications';
+import SiriShortcuts from '@/components/SiriShortcuts';
+import AppleWatchCompanion from '@/components/AppleWatchCompanion';
+import { useAnalytics, AnalyticsDashboard } from '@/components/Analytics';
 
 // Categories - now uses dynamic categories from CategoryManager
 // Default categories are defined in CategoryManager.jsx
@@ -161,7 +168,7 @@ export default function Frog() {
   const [frogCompleted, setFrogCompleted] = useState(false);
   const [dailyFrog, setDailyFrog] = useState(null);
   const [showAddTask, setShowAddTask] = useState(false);
-  const [newTask, setNewTask] = useState({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25, recurrence: 'none', dueDate: null });
+  const [newTask, setNewTask] = useState({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25, recurrence: 'none', dueDate: null, dueReminder: 'none' });
   const [timerStartTime, setTimerStartTime] = useState(null);
   const [timeEstimates, setTimeEstimates] = useState({}); // { taskId: { estimated, actual, completed_at } }
   const [isLoaded, setIsLoaded] = useState(false);
@@ -231,14 +238,28 @@ export default function Frog() {
   
   // Reorder mode state
   const [reorderMode, setReorderMode] = useState(false);
-  
+
+  // New feature modal states
+  const [showSiriShortcuts, setShowSiriShortcuts] = useState(false);
+  const [showAppleWatch, setShowAppleWatch] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
   const timerRef = useRef(null);
-  
+
   // Restore scheduled reminders on load
   useRestoreReminders(tasks);
-  
+
   // Achievements hook
   const { checkAchievements, stats: achievementStats } = useAchievements();
+
+  // Onboarding hook
+  const onboarding = useOnboarding();
+
+  // Analytics hook
+  const { trackEvent, trackFeature, EVENT_TYPES } = useAnalytics();
+
+  // Due date notifications hook
+  const { checkOverdueTasks } = useDueDateNotifications(tasks);
 
   // Load data from Supabase on mount
   useEffect(() => {
@@ -974,7 +995,7 @@ export default function Frog() {
       setTasks(prev => [...prev, localTask]);
     }
     
-    setNewTask({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25, recurrence: 'none', dueDate: null });
+    setNewTask({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25, recurrence: 'none', dueDate: null, dueReminder: 'none' });
     setShowAddTask(false);
   };
 
@@ -1713,6 +1734,29 @@ export default function Frog() {
           </div>
         )}
 
+        {/* Overdue Tasks Banner */}
+        <div className="px-4 mt-4">
+          <OverdueTasksBanner
+            tasks={tasks}
+            onTaskClick={(task) => startFocus(task, task.estimatedMinutes || 25)}
+          />
+        </div>
+
+        {/* AI Task Suggestions */}
+        {energy && tasks.length > 0 && (
+          <div className="px-4 mt-4">
+            <AISuggestionsCard
+              tasks={tasks}
+              energyLevel={energy}
+              stats={{ streak, level, xp, tasksCompletedToday: completedTasks.filter(t => {
+                const today = new Date().toDateString();
+                return t.completed_at && new Date(t.completed_at).toDateString() === today;
+              }).length }}
+              onSelectTask={(task) => startFocus(task, task.estimatedMinutes || 25)}
+            />
+          </div>
+        )}
+
         {/* Tasks List with Pull to Refresh */}
         <PullToRefresh onRefresh={handleRefresh} className="mt-4">
           {/* Refresh indicator */}
@@ -1761,6 +1805,7 @@ export default function Frog() {
                             {CATEGORIES[task.category]?.name}
                           </span>
                           {task.frog && <span className="text-sm">🐸</span>}
+                          {task.dueDate && <DueDateBadge dueDate={task.dueDate} compact />}
                         </div>
                       </div>
                       <span className="text-white/40 text-2xl">↕</span>
@@ -1830,6 +1875,7 @@ export default function Frog() {
                         {task.reminderTime && new Date(task.reminderTime) > new Date() && (
                           <span className="text-xs text-yellow-400" title={`Reminder: ${new Date(task.reminderTime).toLocaleString()}`}>🔔</span>
                         )}
+                        {task.dueDate && <DueDateBadge dueDate={task.dueDate} compact />}
                         {progress && (
                           <span className="text-green-400 text-xs">
                             {progress.completed}/{progress.total} ✓
@@ -2346,6 +2392,68 @@ export default function Frog() {
                     <span className="text-white/40">→</span>
                   </button>
                 </div>
+
+                {/* Platform Integrations Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Platform Integrations</h3>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => { setShowSettings(false); setShowSiriShortcuts(true); }}
+                      className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors ios-button"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🎙️</span>
+                        <div className="text-left">
+                          <p className="text-white font-medium">Siri Shortcuts</p>
+                          <p className="text-white/40 text-xs">Voice commands for tasks</p>
+                        </div>
+                      </div>
+                      <span className="text-white/40">→</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setShowSettings(false); setShowAppleWatch(true); }}
+                      className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors ios-button"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">⌚</span>
+                        <div className="text-left">
+                          <p className="text-white font-medium">Apple Watch</p>
+                          <p className="text-white/40 text-xs">Complications & quick actions</p>
+                        </div>
+                      </div>
+                      <span className="text-white/40">→</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setShowSettings(false); setShowAnalytics(true); }}
+                      className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors ios-button"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">📊</span>
+                        <div className="text-left">
+                          <p className="text-white font-medium">Analytics</p>
+                          <p className="text-white/40 text-xs">Usage insights & patterns</p>
+                        </div>
+                      </div>
+                      <span className="text-white/40">→</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setShowSettings(false); onboarding.resetOnboarding(); }}
+                      className="w-full flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors ios-button"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">📖</span>
+                        <div className="text-left">
+                          <p className="text-white font-medium">Replay Tutorial</p>
+                          <p className="text-white/40 text-xs">See the onboarding again</p>
+                        </div>
+                      </div>
+                      <span className="text-white/40">→</span>
+                    </button>
+                  </div>
+                </div>
                 
                 {/* Reminders Section */}
                 {/* Apple Reminders Sync Section */}
@@ -2615,17 +2723,16 @@ export default function Frog() {
                     </div>
                   </div>
                   
-                  {/* Due Date (only show for non-recurring or first occurrence) */}
+                  {/* Due Date with Enhanced Picker */}
                   <div>
                     <label className="text-white/60 text-sm mb-2 block">
                       {newTask.recurrence === 'none' ? 'Due Date (optional)' : 'Start Date'}
                     </label>
-                    <input
-                      type="date"
-                      value={newTask.dueDate ? new Date(newTask.dueDate).toISOString().split('T')[0] : ''}
-                      onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value ? new Date(e.target.value).toISOString() : null }))}
-                      className="w-full glass-input px-4 py-3 rounded-xl text-white"
-                      style={{ colorScheme: 'dark' }}
+                    <DueDatePicker
+                      value={newTask.dueDate}
+                      onChange={(date) => setNewTask(prev => ({ ...prev, dueDate: date }))}
+                      reminder={newTask.dueReminder}
+                      onReminderChange={(reminder) => setNewTask(prev => ({ ...prev, dueReminder: reminder }))}
                     />
                   </div>
                   
@@ -2762,6 +2869,24 @@ export default function Frog() {
           onClose={() => setShowBackgroundSelector(false)}
           currentPage="home"
         />
+
+        {/* Onboarding Modal */}
+        <OnboardingModal {...onboarding} />
+
+        {/* Siri Shortcuts Modal */}
+        {showSiriShortcuts && (
+          <SiriShortcuts onClose={() => setShowSiriShortcuts(false)} />
+        )}
+
+        {/* Apple Watch Companion Modal */}
+        {showAppleWatch && (
+          <AppleWatchCompanion onClose={() => setShowAppleWatch(false)} />
+        )}
+
+        {/* Analytics Dashboard Modal */}
+        {showAnalytics && (
+          <AnalyticsDashboard onClose={() => setShowAnalytics(false)} />
+        )}
 
         {/* Achievement Unlock Popup */}
         <AchievementPopup />

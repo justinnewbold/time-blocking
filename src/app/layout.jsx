@@ -6,6 +6,8 @@ import { AchievementsProvider } from '@/components/AchievementsContext'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { AuthProvider } from '@/components/AuthContext'
 import LoginModal from '@/components/LoginModal'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import { AnalyticsProvider } from '@/components/Analytics'
 
 export const metadata = {
   title: 'Frog 🐸',
@@ -63,18 +65,22 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body className="text-white antialiased overscroll-none selection:bg-green-500/30">
-        <AuthProvider>
-          <ThemeProvider>
-            <BackgroundProvider>
-              <AchievementsProvider>
-                <ServiceWorkerRegister />
-                {children}
-                <InstallPrompt />
-                <LoginModal />
-              </AchievementsProvider>
-            </BackgroundProvider>
-          </ThemeProvider>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AnalyticsProvider>
+            <AuthProvider>
+              <ThemeProvider>
+                <BackgroundProvider>
+                  <AchievementsProvider>
+                    <ServiceWorkerRegister />
+                    {children}
+                    <InstallPrompt />
+                    <LoginModal />
+                  </AchievementsProvider>
+                </BackgroundProvider>
+              </ThemeProvider>
+            </AuthProvider>
+          </AnalyticsProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )
