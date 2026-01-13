@@ -30,6 +30,7 @@ import { DueDatePicker, DueDateBadge, OverdueTasksBanner, useDueDateNotification
 import SiriShortcuts from '@/components/SiriShortcuts';
 import AppleWatchCompanion from '@/components/AppleWatchCompanion';
 import { useAnalytics, AnalyticsDashboard } from '@/components/Analytics';
+import UserProfile from '@/components/UserProfile';
 
 // Categories - now uses dynamic categories from CategoryManager
 // Default categories are defined in CategoryManager.jsx
@@ -2196,6 +2197,12 @@ export default function Frog() {
                   </button>
                 </div>
                 
+                {/* Account Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Account</h3>
+                  <UserProfile />
+                </div>
+
                 {/* Notifications Section */}
                 <div className="mb-6">
                   <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Notifications</h3>
