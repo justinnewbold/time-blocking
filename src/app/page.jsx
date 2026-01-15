@@ -112,6 +112,39 @@ const Storage = {
   }
 };
 
+// Get ISO week number for streak freeze reset
+const getISOWeek = (date = new Date()) => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+};
+
+// Time Blindness Helper: Get average actual time for a category
+const getAverageTimeForCategory = (timeHistory, category, difficulty = null) => {
+  const key = difficulty ? `${category}_${difficulty}` : category;
+  const times = timeHistory[key] || timeHistory[category] || [];
+  if (times.length === 0) return null;
+  const avg = times.reduce((a, b) => a + b, 0) / times.length;
+  return Math.round(avg);
+};
+
+// Time Blindness Helper: Get time prediction message
+const getTimePrediction = (timeHistory, category, difficulty, estimatedMinutes) => {
+  const avgTime = getAverageTimeForCategory(timeHistory, category, difficulty);
+  if (!avgTime) return null;
+
+  const diff = avgTime - estimatedMinutes;
+  if (Math.abs(diff) <= 2) {
+    return { message: `Usually takes ~${avgTime}min`, type: 'accurate', avgTime };
+  } else if (diff > 0) {
+    return { message: `Usually takes ~${avgTime}min (${diff}min longer than estimate)`, type: 'underestimate', avgTime };
+  } else {
+    return { message: `Usually takes ~${avgTime}min`, type: 'overestimate', avgTime };
+  }
+};
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -186,8 +219,24 @@ export default function Frog() {
     autoFilterByEnergy: true,
     compactMode: false,
     lowStimMode: false,  // ADHD: Reduce animations and visual noise
-    gentleLanguage: true  // ADHD: Use encouraging language instead of pressure
+    gentleLanguage: true,  // ADHD: Use encouraging language instead of pressure
+    // Streak Protection settings
+    streakFreezesPerWeek: 2,  // Number of "forgiveness" days per week
+    streakForgiveness: true   // Enable gentle streak recovery
   });
+
+  // Time Blindness Helper - track actual times by category for predictions
+  const [timeHistory, setTimeHistory] = useState({}); // { category: [actualMinutes, ...] }
+
+  // Transition Momentum - buffer screen between tasks
+  const [showTransition, setShowTransition] = useState(false);
+  const [completedTaskData, setCompletedTaskData] = useState(null); // { task, actualMinutes, estimatedMinutes, xpEarned }
+  const [suggestedNextTask, setSuggestedNextTask] = useState(null);
+
+  // Streak Protection state
+  const [streakFreezesUsed, setStreakFreezesUsed] = useState(0); // How many freezes used this week
+  const [streakPaused, setStreakPaused] = useState(false); // Whether streak is currently "paused" not "lost"
+  const [lastStreakWeek, setLastStreakWeek] = useState(null); // ISO week number to reset freezes
 
   // ADHD Features State
   const [showWelcomeBack, setShowWelcomeBack] = useState(false);
@@ -296,9 +345,58 @@ export default function Frog() {
         if (progress) {
           setXp(progress.total_xp || 0);
           setLevel(progress.level || 1);
-          setStreak(progress.current_streak || 0);
+
+          // STREAK PROTECTION: Check if we need to use a freeze day
+          const lastActivity = progress.last_activity_date;
+          const today = new Date().toISOString().split('T')[0];
+          const currentStreak = progress.current_streak || 0;
+
+          if (lastActivity && lastActivity !== today && currentStreak > 0) {
+            const lastDate = new Date(lastActivity);
+            const todayDate = new Date(today);
+            const daysDiff = Math.floor((todayDate - lastDate) / (1000 * 60 * 60 * 24));
+
+            if (daysDiff === 1) {
+              // Yesterday - streak continues normally
+              setStreak(currentStreak);
+            } else if (daysDiff > 1) {
+              // Missed days - check for freeze
+              const savedSettings = Storage.get('settings', {});
+              const freezesPerWeek = savedSettings.streakFreezesPerWeek || 2;
+              const forgiveness = savedSettings.streakForgiveness !== false;
+              const usedFreezes = Storage.get('streakFreezesUsed', 0);
+              const missedDays = daysDiff - 1;
+
+              if (forgiveness && usedFreezes + missedDays <= freezesPerWeek) {
+                // Use freeze days to protect streak
+                const newFreezesUsed = usedFreezes + missedDays;
+                setStreakFreezesUsed(newFreezesUsed);
+                setStreakPaused(true);
+                setStreak(currentStreak);
+                Storage.set('streakFreezesUsed', newFreezesUsed);
+                Storage.set('streakPaused', true);
+              } else if (forgiveness && usedFreezes < freezesPerWeek) {
+                // Partial protection - use remaining freezes but reduce streak
+                const protectedDays = freezesPerWeek - usedFreezes;
+                const lostDays = missedDays - protectedDays;
+                const newStreak = Math.max(0, currentStreak - lostDays);
+                setStreakFreezesUsed(freezesPerWeek);
+                setStreakPaused(true);
+                setStreak(newStreak);
+                Storage.set('streakFreezesUsed', freezesPerWeek);
+                Storage.set('streakPaused', true);
+              } else {
+                // No protection available - streak resets but with gentle message
+                setStreak(0);
+                setStreakPaused(false);
+                Storage.set('streakPaused', false);
+              }
+            }
+          } else {
+            setStreak(currentStreak);
+          }
         }
-        
+
         // Check if we have a saved frog
         const savedFrog = formattedTasks.find(t => t.frog);
         if (savedFrog) {
@@ -347,6 +445,26 @@ export default function Frog() {
         const savedSettings = Storage.get('settings', null);
         if (savedSettings) {
           setSettings(prev => ({ ...prev, ...savedSettings }));
+        }
+
+        // Load Time Blindness Helper history
+        const savedTimeHistory = Storage.get('timeHistory', {});
+        setTimeHistory(savedTimeHistory);
+
+        // Load Streak Protection data
+        const savedStreakFreezesUsed = Storage.get('streakFreezesUsed', 0);
+        const savedLastStreakWeek = Storage.get('lastStreakWeek', null);
+        const currentWeek = getISOWeek();
+
+        // Reset freezes if new week
+        if (savedLastStreakWeek !== currentWeek) {
+          setStreakFreezesUsed(0);
+          setLastStreakWeek(currentWeek);
+          Storage.set('streakFreezesUsed', 0);
+          Storage.set('lastStreakWeek', currentWeek);
+        } else {
+          setStreakFreezesUsed(savedStreakFreezesUsed);
+          setLastStreakWeek(savedLastStreakWeek);
         }
         
         // Load thought dump (today only)
@@ -920,28 +1038,97 @@ export default function Frog() {
       }
     }
     
-    setTasks(prev => prev.filter(t => t.id !== task.id));
+    // Remove from tasks, add to completed
+    const remainingTasks = tasks.filter(t => t.id !== task.id);
+    setTasks(remainingTasks);
     setCompletedTasks(prev => [...prev, { ...task, completed: true, completedAt: new Date().toISOString(), timeData, earnedXP }]);
-    
+
     if (task.frog) {
       setFrogCompleted(true);
       setDailyFrog(null);
     }
-    
-    setShowCelebration(true);
-    setTimeout(() => setShowCelebration(false), 2000);
-    
+
+    // TIME BLINDNESS HELPER: Update time history for this category
+    if (actualMinutes > 0) {
+      const categoryKey = `${task.category}_${task.difficulty}`;
+      setTimeHistory(prev => {
+        const updated = {
+          ...prev,
+          [categoryKey]: [...(prev[categoryKey] || []), actualMinutes].slice(-10), // Keep last 10
+          [task.category]: [...(prev[task.category] || []), actualMinutes].slice(-20) // Keep last 20
+        };
+        Storage.set('timeHistory', updated);
+        return updated;
+      });
+    }
+
+    // TRANSITION MOMENTUM: Show transition screen instead of going directly to tasks
+    const nextTask = findNextSuggestedTask(remainingTasks, energy, task);
+    setSuggestedNextTask(nextTask);
+    setCompletedTaskData({
+      task,
+      actualMinutes,
+      estimatedMinutes,
+      xpEarned: earnedXP,
+      timeDiff: actualMinutes - estimatedMinutes
+    });
+
     // Trigger confetti celebration
     setConfettiFrog(task.frog);
     setShowConfetti(true);
-    
+
     setFocusTask(null);
     setTimerStartTime(null);
-    setScreen('tasks');
-    
+
+    // Show transition screen (will auto-dismiss or user can continue)
+    setShowTransition(true);
+
     Storage.set('xp', newXP);
     Storage.set('level', Math.floor(newXP / 100) + 1);
-  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements]);
+  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy]);
+
+  // TRANSITION MOMENTUM: Find the best next task to suggest
+  const findNextSuggestedTask = useCallback((remainingTasks, currentEnergy, completedTask) => {
+    if (remainingTasks.length === 0) return null;
+
+    // Filter by energy if auto-filter enabled
+    let candidates = remainingTasks;
+    if (settings.autoFilterByEnergy && currentEnergy) {
+      if (currentEnergy <= 2) {
+        candidates = candidates.filter(t => t.difficulty <= 2);
+      } else if (currentEnergy === 3) {
+        candidates = candidates.filter(t => t.difficulty <= 4);
+      }
+    }
+
+    // If no candidates after energy filter, use all remaining
+    if (candidates.length === 0) candidates = remainingTasks;
+
+    // Priority order: frog first, then by difficulty matching energy
+    const frogTask = candidates.find(t => t.frog);
+    if (frogTask) return frogTask;
+
+    // Quick wins (low difficulty) for momentum
+    const quickWins = candidates.filter(t => t.difficulty <= 2);
+    if (quickWins.length > 0) return quickWins[0];
+
+    // Otherwise first available
+    return candidates[0];
+  }, [settings.autoFilterByEnergy]);
+
+  // TRANSITION MOMENTUM: Handle continuing to next task from transition screen
+  const handleTransitionContinue = useCallback((startNextTask = false) => {
+    setShowTransition(false);
+    setShowCelebration(false);
+    setCompletedTaskData(null);
+
+    if (startNextTask && suggestedNextTask) {
+      // Start 2-minute micro-session on the suggested task
+      startFocusWithStartXP(suggestedNextTask, 2);
+    } else {
+      setScreen('tasks');
+    }
+  }, [suggestedNextTask]);
 
   // Delete a task
   const handleDeleteTask = useCallback((taskId) => {
@@ -1334,8 +1521,12 @@ export default function Frog() {
             <div className="glass-card p-4">
               <div className="flex justify-around text-center">
                 <div>
-                  <p className="text-2xl font-bold text-white">{streak}</p>
-                  <p className="text-white/40 text-xs">Day Streak</p>
+                  <p className={`text-2xl font-bold ${streakPaused ? 'text-blue-400' : 'text-white'}`}>
+                    {streak}{streakPaused && <span className="text-sm ml-1">❄️</span>}
+                  </p>
+                  <p className="text-white/40 text-xs">
+                    {streakPaused ? 'Streak Paused' : 'Day Streak'}
+                  </p>
                 </div>
                 <div className="w-px bg-white/10" />
                 <div>
@@ -1806,6 +1997,15 @@ export default function Frog() {
                           </span>
                         )}
                       </div>
+                      {/* TIME BLINDNESS HELPER: Show average time hint */}
+                      {(() => {
+                        const prediction = getTimePrediction(timeHistory, task.category, task.difficulty, task.estimatedMinutes || 25);
+                        return prediction ? (
+                          <p className={`text-xs mt-1 ${prediction.type === 'underestimate' ? 'text-orange-400/70' : 'text-white/40'}`}>
+                            ⏱️ {prediction.message}
+                          </p>
+                        ) : null;
+                      })()}
                     </div>
                     <span className={`text-white/40 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
                       ▼
@@ -2182,11 +2382,34 @@ export default function Frog() {
                       </button>
                     </div>
 
+                    {/* Streak Protection Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">❄️</span>
+                        <div>
+                          <p className="text-white font-medium">Streak Forgiveness</p>
+                          <p className="text-white/40 text-xs">
+                            {settings.streakFreezesPerWeek} freeze days/week ({settings.streakFreezesPerWeek - streakFreezesUsed} left)
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('streakForgiveness')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.streakForgiveness ? 'bg-blue-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.streakForgiveness ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
                     {/* Quick explanation */}
                     <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
                       <p className="text-purple-300 text-xs">
-                        <strong>Pick For Me 🎲</strong> button appears when you have tasks - tap it to overcome decision paralysis!
-                        The <strong>2m timer</strong> helps you just get started.
+                        <strong>Pick For Me 🎲</strong> overcomes decision paralysis. <strong>2m timer</strong> helps you start.
+                        <strong> Streak Freezes ❄️</strong> protect your streak on tough days - no shame spirals!
                       </p>
                     </div>
                   </div>
@@ -2677,12 +2900,105 @@ export default function Frog() {
         )}
         
         {/* Confetti Celebration */}
-        <TaskCompleteCelebration 
+        <TaskCompleteCelebration
           active={showConfetti}
           isFrog={confettiFrog}
           onComplete={() => setShowConfetti(false)}
         />
-        
+
+        {/* TRANSITION MOMENTUM: Post-task transition screen */}
+        {showTransition && completedTaskData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+            <div className={`relative w-full max-w-sm mx-4 ${!settings.lowStimMode ? 'animate-bounce-in' : 'animate-slide-up'}`}>
+              <div className="glass-card p-6 text-center">
+                {/* Celebration */}
+                <div className={`text-6xl mb-3 ${!settings.lowStimMode ? 'animate-wave' : ''}`}>
+                  {completedTaskData.task.frog ? '🐸' : '✅'}
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-1">
+                  {completedTaskData.task.frog ? 'Frog Eaten!' : 'Nice Work!'}
+                </h2>
+                <p className="text-green-400 font-semibold mb-4">+{completedTaskData.xpEarned} XP</p>
+
+                {/* TIME BLINDNESS FEEDBACK */}
+                {completedTaskData.actualMinutes > 0 && (
+                  <div className="glass p-3 rounded-xl mb-4 text-sm">
+                    <div className="flex justify-between text-white/70 mb-1">
+                      <span>Estimated</span>
+                      <span>Actual</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white font-medium">{completedTaskData.estimatedMinutes}min</span>
+                      <span className={`text-lg ${completedTaskData.timeDiff <= 0 ? 'text-green-400' : completedTaskData.timeDiff <= 5 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                        →
+                      </span>
+                      <span className={`font-bold ${completedTaskData.timeDiff <= 0 ? 'text-green-400' : completedTaskData.timeDiff <= 5 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                        {completedTaskData.actualMinutes}min
+                      </span>
+                    </div>
+                    {completedTaskData.timeDiff > 5 && settings.gentleLanguage && (
+                      <p className="text-white/50 text-xs mt-2">
+                        This type of task usually takes a bit longer - that's useful to know! 📝
+                      </p>
+                    )}
+                    {completedTaskData.timeDiff <= 0 && (
+                      <p className="text-green-400/70 text-xs mt-2">
+                        Finished early! Great focus session 🎯
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* 30-second transition buffer message */}
+                <p className="text-white/50 text-xs mb-4">
+                  Take a breath. You've earned a moment. 🌟
+                </p>
+
+                {/* Next task suggestion */}
+                {suggestedNextTask ? (
+                  <div className="space-y-3">
+                    <div className="glass p-3 rounded-xl text-left">
+                      <p className="text-white/50 text-xs uppercase tracking-wide mb-1">Up Next</p>
+                      <p className="text-white font-medium">{suggestedNextTask.title}</p>
+                      {suggestedNextTask.frog && (
+                        <span className="inline-block mt-1 text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+                          🐸 Your Frog
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleTransitionContinue(true)}
+                      className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-green-500/20 border-green-500/30 hover:bg-green-500/30 transition-all flex items-center justify-center gap-2"
+                    >
+                      <span>⚡</span>
+                      <span>Just 2 more minutes</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleTransitionContinue(false)}
+                      className="w-full glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                    >
+                      Take a break
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-white/70">All tasks complete for now! 🎉</p>
+                    <button
+                      onClick={() => handleTransitionContinue(false)}
+                      className="w-full glass-button py-3 rounded-xl text-white hover:bg-white/10 transition-colors"
+                    >
+                      Back to Home
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Widget Preview Modal */}
         {showWidgetModal && (
           <WidgetPreview
