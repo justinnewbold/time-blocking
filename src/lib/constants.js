@@ -9,15 +9,9 @@ export const categories = {
   'Development': { color: '#3b82f6', bg: '#eff6ff', emoji: '💻' },
 };
 
-// Apple Reminders list IDs
-export const reminderLists = {
-  'Reminders': 'AF8D31D8-06C5-4115-AA24-081D9D93E157',
-  'Layton Patty Shack': 'F08EB204-16FA-4C5A-8018-7AC5BB8E8AE0',
-  'Taylorsville Patty Shack': '2FB1418C-28DC-407F-9164-D32FBBC33512',
-  'To Do (Home)': '57C9E43B-15B7-472A-B56F-570D71735EC9',
-  'Grocery List': '4D3A49FA-F3E5-4D45-A28D-050BDCCD2C1F',
-  'Family': '9E7DF8AA-630A-4BAF-800C-C991A26025B3',
-};
+// Apple Reminders list IDs - configured per user via their device
+// These are populated dynamically when syncing with Apple Reminders
+export const reminderLists = {};
 
 // Energy level definitions
 export const energyLevels = [

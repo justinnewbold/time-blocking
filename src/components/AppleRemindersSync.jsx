@@ -3,22 +3,22 @@
 import { useState, useEffect, useCallback } from 'react';
 
 // Apple Reminders Sync Component
-export default function AppleRemindersSync({ userId = 'default_user', onSyncComplete }) {
+export default function AppleRemindersSync({ userId, onSyncComplete }) {
   const [syncStatus, setSyncStatus] = useState('idle'); // idle, syncing, success, error
   const [lastSync, setLastSync] = useState(null);
   const [syncResults, setSyncResults] = useState(null);
   const [showSetup, setShowSetup] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  
+
   // Load last sync time from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('frog_apple_last_sync');
     if (saved) setLastSync(new Date(saved));
   }, []);
-  
-  // Sync secret (should match server)
-  const SYNC_SECRET = 'frog-sync-2025';
-  const API_URL = 'https://frog.newbold.cloud/api/apple-reminders';
+
+  // Use environment variable for sync secret, relative URL for API
+  const SYNC_SECRET = process.env.NEXT_PUBLIC_SYNC_SECRET || '';
+  const API_URL = '/api/apple-reminders';
   
   // Manual sync trigger (gets tasks to export)
   const handleExportToApple = useCallback(async () => {
@@ -185,13 +185,13 @@ export default function AppleRemindersSync({ userId = 'default_user', onSyncComp
           {/* Shortcut Download Links */}
           <div className="pt-3 border-t border-white/10 space-y-2">
             <a
-              href="shortcuts://import-shortcut?url=https://frog.newbold.cloud/shortcuts/sync-to-frog.shortcut"
+              href={`shortcuts://import-shortcut?url=${process.env.NEXT_PUBLIC_APP_URL || ''}/shortcuts/sync-to-frog.shortcut`}
               className="block w-full glass-button p-3 rounded-xl bg-blue-500/20 text-blue-400 text-center font-medium"
             >
               📥 Get "Import to Frog" Shortcut
             </a>
             <a
-              href="shortcuts://import-shortcut?url=https://frog.newbold.cloud/shortcuts/export-from-frog.shortcut"
+              href={`shortcuts://import-shortcut?url=${process.env.NEXT_PUBLIC_APP_URL || ''}/shortcuts/export-from-frog.shortcut`}
               className="block w-full glass-button p-3 rounded-xl bg-green-500/20 text-green-400 text-center font-medium"
             >
               📤 Get "Export from Frog" Shortcut
@@ -241,7 +241,7 @@ export default function AppleRemindersSync({ userId = 'default_user', onSyncComp
               </div>
               
               <a
-                href="shortcuts://import-shortcut?url=https://frog.newbold.cloud/shortcuts/sync-to-frog.shortcut"
+                href={`shortcuts://import-shortcut?url=${process.env.NEXT_PUBLIC_APP_URL || ''}/shortcuts/sync-to-frog.shortcut`}
                 className="block w-full py-4 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-500 text-white text-center font-bold text-lg"
               >
                 Add Shortcut to My Device
@@ -273,19 +273,21 @@ export function AppleSyncButton({ onClick, syncing }) {
 }
 
 // Hook for sync status
-export function useAppleRemindersSync(userId = 'default_user') {
+export function useAppleRemindersSync(userId) {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
-  
+
   useEffect(() => {
     const saved = localStorage.getItem('frog_apple_last_sync');
     if (saved) setLastSync(new Date(saved));
   }, []);
-  
+
   const sync = useCallback(async () => {
+    if (!userId) return { success: false, error: 'No user ID' };
     setSyncing(true);
     try {
-      const res = await fetch(`/api/apple-reminders?secret=frog-sync-2025&user_id=${userId}`);
+      const secret = process.env.NEXT_PUBLIC_SYNC_SECRET || '';
+      const res = await fetch(`/api/apple-reminders?secret=${secret}&user_id=${userId}`);
       const data = await res.json();
       if (data.success) {
         const now = new Date();
@@ -297,6 +299,6 @@ export function useAppleRemindersSync(userId = 'default_user') {
       setSyncing(false);
     }
   }, [userId]);
-  
+
   return { sync, syncing, lastSync };
 }

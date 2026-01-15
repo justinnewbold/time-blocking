@@ -4,9 +4,10 @@ import { useState } from 'react';
 
 export default function ShortcutsPage() {
   const [copied, setCopied] = useState(null);
-  
-  const FROG_URL = 'https://frog.newbold.cloud';
-  const SYNC_SECRET = 'frog-sync-2025';
+
+  // Use environment variables for configuration
+  const FROG_URL = process.env.NEXT_PUBLIC_APP_URL || '';
+  const SYNC_SECRET = process.env.NEXT_PUBLIC_SYNC_SECRET || '';
   
   // Copy to clipboard helper
   const copyToClipboard = async (text, id) => {
@@ -34,9 +35,9 @@ export default function ShortcutsPage() {
       apiEndpoint: `${FROG_URL}/api/apple-reminders`,
       method: 'POST',
       body: {
-        secret: SYNC_SECRET,
+        secret: '[Your Sync Secret]',
         action: 'import',
-        user_id: 'default_user',
+        user_id: '[Your User ID]',
         reminders: '[Array of reminder objects]'
       }
     },
@@ -53,7 +54,7 @@ export default function ShortcutsPage() {
         { action: 'Add New Reminder', note: 'Create reminder with title, list, priority' },
         { action: 'Show Result', note: 'Display export confirmation' }
       ],
-      apiEndpoint: `${FROG_URL}/api/apple-reminders?secret=${SYNC_SECRET}&user_id=default_user&filter=incomplete`,
+      apiEndpoint: `${FROG_URL}/api/apple-reminders?secret=[SECRET]&user_id=[USER_ID]&filter=incomplete`,
       method: 'GET'
     },
     {
@@ -71,9 +72,9 @@ export default function ShortcutsPage() {
       apiEndpoint: `${FROG_URL}/api/apple-reminders`,
       method: 'POST',
       body: {
-        secret: SYNC_SECRET,
+        secret: '[Your Sync Secret]',
         action: 'complete',
-        user_id: 'default_user',
+        user_id: '[Your User ID]',
         apple_id: '[Reminder ID]'
       }
     }

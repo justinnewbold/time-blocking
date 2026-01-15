@@ -2,6 +2,7 @@
 // Can be used by iOS Shortcuts, widgets, or other integrations
 
 import { NextResponse } from 'next/server';
+import { getTasks, getUserProgress } from '@/lib/supabase';
 
 // Widget types supported
 const WIDGET_TYPES = {
@@ -13,89 +14,178 @@ const WIDGET_TYPES = {
   ENERGY: 'energy',    // Energy level and suggestions
 };
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('userId') || 'default';
-  const widgetType = searchParams.get('type') || WIDGET_TYPES.MEDIUM;
-  const format = searchParams.get('format') || 'json'; // json, scriptable, shortcuts
-
-  // Build widget data based on type
-  const baseData = {
-    timestamp: new Date().toISOString(),
-    userId,
-    widgetType,
-    today: {
-      date: new Date().toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric'
-      }),
-      shortDate: new Date().toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric'
-      }),
-      greeting: getGreeting(),
-      dayProgress: getDayProgress(),
-    },
-    frog: {
-      hasDaily: false,
-      title: null,
-      category: null,
-      emoji: '🐸',
-      message: "No frog selected yet. Open Frog to eat your frog!",
-    },
-    stats: {
-      tasksRemaining: 0,
-      tasksCompleted: 0,
-      totalTasks: 0,
-      completionRate: 0,
-      currentStreak: 0,
-      longestStreak: 0,
-      level: 1,
-      xp: 0,
-      xpToNextLevel: 200,
-      frogsEatenToday: 0,
-    },
-    energy: {
-      current: null,
-      lastCheckin: null,
-      suggestion: "Check in to see task suggestions",
-    },
-    tasks: {
-      top3: [],
-      overdue: [],
-      dueToday: [],
-      quickWins: [],
-    },
-    quickActions: [
-      { label: 'Open Frog', action: 'open', url: 'https://frog.newbold.cloud' },
-      { label: 'Add Task', action: 'add', url: 'https://frog.newbold.cloud?action=add' },
-      { label: 'Check Energy', action: 'energy', url: 'https://frog.newbold.cloud?action=checkin' },
-      { label: 'Start Focus', action: 'focus', url: 'https://frog.newbold.cloud?action=focus' },
-    ],
-  };
-
-  // Filter data based on widget type
-  let widgetData = filterByWidgetType(baseData, widgetType);
-
-  // Format response based on requested format
-  if (format === 'scriptable') {
-    widgetData = formatForScriptable(widgetData);
-  } else if (format === 'shortcuts') {
-    widgetData = formatForShortcuts(widgetData);
+// Get app URL from environment or construct from request
+function getAppUrl(request) {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
   }
-
-  return NextResponse.json(widgetData, {
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-    },
-  });
+  const url = new URL(request.url);
+  return `${url.protocol}//${url.host}`;
 }
 
-function filterByWidgetType(data, type) {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+  const widgetType = searchParams.get('type') || WIDGET_TYPES.MEDIUM;
+  const format = searchParams.get('format') || 'json'; // json, scriptable, shortcuts
+  const appUrl = getAppUrl(request);
+
+  // If no userId provided, return error
+  if (!userId) {
+    return NextResponse.json({
+      error: 'userId parameter is required',
+      timestamp: new Date().toISOString(),
+    }, {
+      status: 400,
+      headers: { 'Access-Control-Allow-Origin': '*' },
+    });
+  }
+
+  try {
+    // Fetch real data from Supabase
+    const [tasks, progress] = await Promise.all([
+      getTasks(userId),
+      getUserProgress(userId),
+    ]);
+
+    const incompleteTasks = tasks.filter(t => !t.completed);
+    const completedTasks = tasks.filter(t => t.completed);
+    const frogTask = incompleteTasks.find(t => t.is_frog);
+    const today = new Date().toISOString().split('T')[0];
+    const todayCompletedFrogs = completedTasks.filter(t =>
+      t.is_frog && t.completed_at && t.completed_at.startsWith(today)
+    ).length;
+
+    // Get overdue and due today tasks
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const overdueTasks = incompleteTasks.filter(t => {
+      if (!t.due_date) return false;
+      const due = new Date(t.due_date);
+      due.setHours(0, 0, 0, 0);
+      return due < now;
+    });
+    const dueTodayTasks = incompleteTasks.filter(t => {
+      if (!t.due_date) return false;
+      const due = new Date(t.due_date);
+      due.setHours(0, 0, 0, 0);
+      return due.getTime() === now.getTime();
+    });
+
+    // Quick wins = low difficulty incomplete tasks
+    const quickWins = incompleteTasks
+      .filter(t => t.difficulty <= 2)
+      .slice(0, 5);
+
+    // Build widget data
+    const baseData = {
+      timestamp: new Date().toISOString(),
+      userId,
+      widgetType,
+      today: {
+        date: new Date().toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'short',
+          day: 'numeric'
+        }),
+        shortDate: new Date().toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric'
+        }),
+        greeting: getGreeting(),
+        dayProgress: getDayProgress(),
+      },
+      frog: {
+        hasDaily: !!frogTask,
+        title: frogTask?.title || null,
+        category: frogTask?.category || null,
+        emoji: '🐸',
+        message: frogTask
+          ? `Your frog: ${frogTask.title}`
+          : "No frog selected yet. Open Frog to eat your frog!",
+      },
+      stats: {
+        tasksRemaining: incompleteTasks.length,
+        tasksCompleted: completedTasks.length,
+        totalTasks: tasks.length,
+        completionRate: tasks.length > 0
+          ? Math.round((completedTasks.length / tasks.length) * 100)
+          : 0,
+        currentStreak: progress?.current_streak || 0,
+        longestStreak: progress?.longest_streak || 0,
+        level: progress?.level || 1,
+        xp: progress?.total_xp || 0,
+        xpToNextLevel: ((progress?.level || 1) * 200) - (progress?.total_xp || 0),
+        frogsEatenToday: todayCompletedFrogs,
+      },
+      energy: {
+        current: null, // Energy is stored client-side
+        lastCheckin: null,
+        suggestion: "Check in to see task suggestions",
+      },
+      tasks: {
+        top3: incompleteTasks.slice(0, 3).map(t => ({
+          id: t.id,
+          title: t.title,
+          category: t.category,
+          difficulty: t.difficulty,
+          isFrog: t.is_frog,
+        })),
+        overdue: overdueTasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          dueDate: t.due_date,
+        })),
+        dueToday: dueTodayTasks.map(t => ({
+          id: t.id,
+          title: t.title,
+        })),
+        quickWins: quickWins.map(t => ({
+          id: t.id,
+          title: t.title,
+          difficulty: t.difficulty,
+        })),
+      },
+      quickActions: [
+        { label: 'Open Frog', action: 'open', url: appUrl },
+        { label: 'Add Task', action: 'add', url: `${appUrl}?action=add` },
+        { label: 'Check Energy', action: 'energy', url: `${appUrl}?action=checkin` },
+        { label: 'Start Focus', action: 'focus', url: `${appUrl}?action=focus` },
+      ],
+    };
+
+    // Filter data based on widget type
+    let widgetData = filterByWidgetType(baseData, widgetType, appUrl);
+
+    // Format response based on requested format
+    if (format === 'scriptable') {
+      widgetData = formatForScriptable(widgetData);
+    } else if (format === 'shortcuts') {
+      widgetData = formatForShortcuts(widgetData, appUrl);
+    }
+
+    return NextResponse.json(widgetData, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      },
+    });
+  } catch (error) {
+    console.error('Widget API error:', error);
+    return NextResponse.json({
+      error: 'Failed to fetch data',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    }, {
+      status: 500,
+      headers: { 'Access-Control-Allow-Origin': '*' },
+    });
+  }
+}
+
+function filterByWidgetType(data, type, appUrl) {
   switch (type) {
     case WIDGET_TYPES.SMALL:
       return {
@@ -172,7 +262,7 @@ function formatForScriptable(data) {
   };
 }
 
-function formatForShortcuts(data) {
+function formatForShortcuts(data, appUrl) {
   // Format optimized for iOS Shortcuts
   return {
     frogTitle: data.frog?.title || 'No frog selected',
@@ -184,7 +274,7 @@ function formatForShortcuts(data) {
     greeting: data.today?.greeting || getGreeting(),
     date: data.today?.shortDate || new Date().toLocaleDateString(),
     message: data.frog?.message || 'Ready to be productive?',
-    openUrl: 'https://frog.newbold.cloud',
+    openUrl: appUrl,
   };
 }
 

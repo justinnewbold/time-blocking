@@ -117,7 +117,7 @@ export default function SiriShortcuts({ onClose }) {
   const [selectedShortcut, setSelectedShortcut] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://frog.newbold.cloud';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || '');
 
   const generateShortcutCode = (shortcut) => {
     // Generate a simple Shortcuts-compatible URL scheme

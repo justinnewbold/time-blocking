@@ -203,7 +203,7 @@ export default function Frog() {
   const [expandedTask, setExpandedTask] = useState(null);
   const [subtasks, setSubtasks] = useState({});  // { taskId: [{id, title, completed}] }
   const [newSubtask, setNewSubtask] = useState('');
-  const [userId] = useState('justin');
+  const [userId, setUserId] = useState(null);
   
   // Dynamic categories (default + custom)
   const [CATEGORIES, refreshCategories] = useCategories();
@@ -270,11 +270,16 @@ export default function Frog() {
     const loadData = async () => {
       try {
         setSyncStatus('syncing');
-        
-        const dbTasks = await getTasks();
+
+        // Get authenticated user
+        const { data: { user } } = await supabase.auth.getUser();
+        const authUserId = user?.id || 'anonymous';
+        setUserId(authUserId);
+
+        const dbTasks = await getTasks(authUserId);
         const incompleteTasks = dbTasks.filter(t => !t.completed);
         const completed = dbTasks.filter(t => t.completed);
-        
+
         const formattedTasks = incompleteTasks.map(t => ({
           id: t.id,
           title: t.title,
@@ -283,11 +288,11 @@ export default function Frog() {
           frog: t.is_frog,
           notes: t.notes
         }));
-        
+
         setTasks(formattedTasks);
         setCompletedTasks(completed);
-        
-        const progress = await getUserProgress(userId);
+
+        const progress = await getUserProgress(authUserId);
         if (progress) {
           setXp(progress.total_xp || 0);
           setLevel(progress.level || 1);
