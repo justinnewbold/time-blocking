@@ -1774,3 +1774,124 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ===== ADHD-Friendly Features ===== */
+
+/* Subtle pulse animation for Pick For Me button - not overwhelming */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.03);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+/* Wave animation for welcome back hand */
+@keyframes wave {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(20deg);
+  }
+  75% {
+    transform: rotate(-20deg);
+  }
+}
+
+.animate-wave {
+  animation: wave 1s ease-in-out 2;
+  display: inline-block;
+  transform-origin: 70% 70%;
+}
+
+/* Bounce in animation for modals */
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+  50% {
+    transform: scale(1.02) translateY(-5px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.4s ease-out forwards;
+}
+
+/* Low Stim Mode overrides - reduces all animations */
+.low-stim-mode * {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition-duration: 0.1s !important;
+}
+
+.low-stim-mode .animate-float,
+.low-stim-mode .animate-pulse-glow,
+.low-stim-mode .animate-bounce,
+.low-stim-mode .animate-pulse-subtle {
+  animation: none !important;
+}
+
+/* Start XP mini celebration */
+@keyframes start-xp-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(10px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2) translateY(-5px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1) translateY(-20px);
+  }
+}
+
+.animate-start-xp {
+  animation: start-xp-pop 0.6s ease-out forwards;
+}
+
+/* Gentle highlight for "Just start" 2m button */
+.micro-start-highlight {
+  position: relative;
+  overflow: hidden;
+}
+
+.micro-start-highlight::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(34, 197, 94, 0.2),
+    transparent
+  );
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  50%, 100% {
+    left: 100%;
+  }
+}

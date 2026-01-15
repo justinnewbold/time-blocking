@@ -44,12 +44,12 @@ const ENERGY_LEVELS = [
   { value: 4, label: 'Locked In', emoji: '🔥', color: '#ef4444', description: "Let's crush it!" },
 ];
 
-// Timer presets
+// Timer presets - includes ADHD-friendly 2-min micro-start
 const TIMER_PRESETS = [
+  { minutes: 2, label: '2m', description: 'Just start', adhd: true },  // ADHD: Overcome initiation paralysis
   { minutes: 5, label: '5m', description: 'Quick burst' },
   { minutes: 15, label: '15m', description: 'Pomodoro lite' },
   { minutes: 25, label: '25m', description: 'Pomodoro' },
-  { minutes: 45, label: '45m', description: 'Deep work' },
 ];
 // Calculate next due date for recurring tasks
 const getNextDueDate = (currentDate, recurrence) => {
@@ -184,19 +184,22 @@ export default function Frog() {
     vibration: true,
     showTaskCount: true,
     autoFilterByEnergy: true,
-    compactMode: false
+    compactMode: false,
+    lowStimMode: false,  // ADHD: Reduce animations and visual noise
+    gentleLanguage: true  // ADHD: Use encouraging language instead of pressure
   });
-  // Thought Dump - quick capture during focus
+
+  // ADHD Features State
+  const [showWelcomeBack, setShowWelcomeBack] = useState(false);
+  const [lastActiveTime, setLastActiveTime] = useState(null);
+  const [taskInProgress, setTaskInProgress] = useState(null);  // Track task user was working on
+  const [startedTasks, setStartedTasks] = useState({});  // Track which tasks user has started (for Start XP)
+  // Thought Dump - quick capture during focus (moved to focus screen only)
   const [thoughtDump, setThoughtDump] = useState([]);
   const [showThoughtInput, setShowThoughtInput] = useState(false);
   const [quickThought, setQuickThought] = useState('');
-  // Daily Top 3
-  const [dailyTop3, setDailyTop3] = useState([]);
-  const [showTop3Picker, setShowTop3Picker] = useState(false);
-  // Quick Wins Filter
-  const [showQuickWinsOnly, setShowQuickWinsOnly] = useState(false);
-  // Focused View - only show frog + top 3 to reduce overwhelm
-  const [focusedView, setFocusedView] = useState(true);
+  // ADHD: One Thing Mode - radically simplified view showing only the frog
+  const [oneThingMode, setOneThingMode] = useState(true);
   const [expandedTask, setExpandedTask] = useState(null);
   const [subtasks, setSubtasks] = useState({});  // { taskId: [{id, title, completed}] }
   const [newSubtask, setNewSubtask] = useState('');
@@ -345,16 +348,7 @@ export default function Frog() {
         const savedThoughts = Storage.get('thoughtDump', []);
         const todayThoughts = savedThoughts.filter(t => new Date(t.timestamp).toDateString() === today);
         setThoughtDump(todayThoughts);
-        
-        // Load daily top 3 (reset if new day)
-        const savedTop3 = Storage.get('dailyTop3', { date: null, tasks: [] });
-        if (savedTop3.date === today) {
-          setDailyTop3(savedTop3.tasks);
-        } else {
-          // New day - prompt to pick top 3
-          setShowTop3Picker(true);
-        }
-        
+
         // Check for rollover tasks (from previous days)
         checkRolloverTasks();
         
@@ -404,13 +398,6 @@ export default function Frog() {
       Storage.set('thoughtDump', [...otherDays, ...thoughtDump]);
     }
   }, [thoughtDump]);
-
-  // Save daily top 3
-  useEffect(() => {
-    if (dailyTop3.length > 0) {
-      Storage.set('dailyTop3', { date: new Date().toDateString(), tasks: dailyTop3 });
-    }
-  }, [dailyTop3]);
 
   // Add a quick thought (during focus mode)
   const addQuickThought = (text) => {
@@ -464,23 +451,6 @@ export default function Frog() {
   // Delete thought
   const deleteThought = (thoughtId) => {
     setThoughtDump(prev => prev.filter(t => t.id !== thoughtId));
-  };
-
-  // Toggle task in daily top 3
-  const toggleTop3 = (taskId) => {
-    if (dailyTop3.includes(taskId)) {
-      setDailyTop3(prev => prev.filter(id => id !== taskId));
-    } else if (dailyTop3.length < 3) {
-      setDailyTop3(prev => [...prev, taskId]);
-    }
-  };
-
-  // Check if all top 3 are done
-  const getTop3Progress = () => {
-    const completed = dailyTop3.filter(id => 
-      completedTasks.some(t => t.id === id) || tasks.find(t => t.id === id)?.completed
-    ).length;
-    return { completed, total: dailyTop3.length };
   };
 
   // Toggle a setting
@@ -562,6 +532,146 @@ export default function Frog() {
     if (avgRecent < first - 0.5) return 'declining';
     return 'stable';
   };
+
+  // ===== ADHD HELPER FUNCTIONS =====
+
+  // Pick For Me - Random task selector based on current energy
+  const pickRandomTask = () => {
+    Haptics.medium();
+
+    // Filter tasks by energy level (if auto-filter enabled)
+    let eligibleTasks = tasks.filter(t => !t.completed);
+
+    if (settings.autoFilterByEnergy && energy) {
+      // Match tasks to energy: low energy = easy tasks, high energy = hard tasks
+      if (energy <= 2) {
+        eligibleTasks = eligibleTasks.filter(t => t.difficulty <= 2);
+      } else if (energy === 3) {
+        eligibleTasks = eligibleTasks.filter(t => t.difficulty <= 4);
+      }
+      // High energy (4) can do any task
+    }
+
+    // If no tasks match energy filter, fall back to all tasks
+    if (eligibleTasks.length === 0) {
+      eligibleTasks = tasks.filter(t => !t.completed);
+    }
+
+    if (eligibleTasks.length === 0) return null;
+
+    // Random selection with slight preference for frog task
+    const frogTask = eligibleTasks.find(t => t.frog);
+    if (frogTask && Math.random() > 0.7) {
+      return frogTask;
+    }
+
+    const randomIndex = Math.floor(Math.random() * eligibleTasks.length);
+    const selectedTask = eligibleTasks[randomIndex];
+
+    // Play fun sound for pick
+    if (settings.soundEffects) {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        // Playful ascending tones
+        osc.frequency.setValueAtTime(400, audioContext.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.1);
+        osc.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime + 0.2);
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.15, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        osc.start(audioContext.currentTime);
+        osc.stop(audioContext.currentTime + 0.3);
+      } catch (e) {}
+    }
+
+    return selectedTask;
+  };
+
+  // Handle Pick For Me button press
+  const handlePickForMe = () => {
+    const task = pickRandomTask();
+    if (task) {
+      // Start with micro-start (2 minutes) to overcome initiation paralysis
+      startFocusWithStartXP(task, 2);
+    }
+  };
+
+  // Start focus WITH Start XP reward (ADHD dopamine hit for just starting)
+  const startFocusWithStartXP = async (task, minutes) => {
+    // Award Start XP if this is the first time starting this task
+    if (!startedTasks[task.id]) {
+      const startXP = Math.max(2, Math.floor((task.difficulty * 10) * 0.1)); // 10% of completion XP, min 2
+      setXp(prev => prev + startXP);
+
+      // Mark task as started
+      setStartedTasks(prev => ({ ...prev, [task.id]: true }));
+      Storage.set('startedTasks', { ...startedTasks, [task.id]: true });
+
+      // Play encouraging start sound
+      if (settings.soundEffects) {
+        try {
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.frequency.value = 523.25; // C5 - bright, encouraging
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0.12, audioContext.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+          osc.start(audioContext.currentTime);
+          osc.stop(audioContext.currentTime + 0.2);
+        } catch (e) {}
+      }
+
+      if (settings.vibration && navigator.vibrate) navigator.vibrate([50, 30, 50]);
+    }
+
+    // Track for distraction recovery
+    setTaskInProgress(task);
+    setLastActiveTime(Date.now());
+    Storage.set('taskInProgress', task);
+    Storage.set('lastActiveTime', Date.now());
+
+    // Start normal focus
+    startFocus(task, minutes);
+  };
+
+  // Check for distraction recovery on visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const savedLastActive = Storage.get('lastActiveTime', null);
+        const savedTaskInProgress = Storage.get('taskInProgress', null);
+
+        if (savedLastActive && savedTaskInProgress) {
+          const timeSinceActive = Date.now() - savedLastActive;
+          // Show welcome back if gone for more than 2 minutes
+          if (timeSinceActive > 2 * 60 * 1000 && screen !== 'focus') {
+            setTaskInProgress(savedTaskInProgress);
+            setShowWelcomeBack(true);
+          }
+        }
+      } else {
+        // User is leaving - save current state
+        setLastActiveTime(Date.now());
+        Storage.set('lastActiveTime', Date.now());
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [screen]);
+
+  // Load started tasks from storage
+  useEffect(() => {
+    const savedStartedTasks = Storage.get('startedTasks', {});
+    setStartedTasks(savedStartedTasks);
+  }, []);
 
   // Rollover tasks function - move incomplete tasks from previous days
   const checkRolloverTasks = () => {
@@ -1102,42 +1212,27 @@ export default function Frog() {
 
   // Apply category filter
   let filteredTasks = selectedCategory === 'all' 
-    ? tasks 
+    ? tasks
     : tasks.filter(t => t.category === selectedCategory);
-  
-  // Apply Quick Wins filter (5-15 minute tasks only)
-  if (showQuickWinsOnly) {
-    filteredTasks = filteredTasks.filter(t => {
-      const est = t.estimatedMinutes || 25;
-      return est >= 5 && est <= 15;
-    });
-  }
 
-  // Apply Focused View filter (only show frog + top 3 to reduce overwhelm)
-  const hasPriorityTasks = dailyFrog || dailyTop3.length > 0;
-  if (focusedView && hasPriorityTasks) {
-    filteredTasks = filteredTasks.filter(t =>
-      t.frog || dailyTop3.includes(t.id)
-    );
-  }
-
-  // Count of hidden tasks when in focused view
-  const hiddenTasksCount = hasPriorityTasks && focusedView
-    ? tasks.filter(t => !t.frog && !dailyTop3.includes(t.id)).length
+  // ADHD: One Thing Mode - only show the frog task (radical simplicity)
+  // When enabled, hides all other tasks to reduce overwhelm
+  const otherTasksCount = oneThingMode && dailyFrog
+    ? tasks.filter(t => !t.frog).length
     : 0;
 
   // Sort tasks - frog first, then by difficulty
   const sortedTasks = [...filteredTasks].sort((a, b) => {
-    // Top 3 tasks come first
-    const aInTop3 = dailyTop3.includes(a.id);
-    const bInTop3 = dailyTop3.includes(b.id);
-    if (aInTop3 && !bInTop3) return -1;
-    if (!aInTop3 && bInTop3) return 1;
-    // Then frog
+    // Frog always first
     if (a.frog && !b.frog) return -1;
     if (!a.frog && b.frog) return 1;
     return b.difficulty - a.difficulty;
   });
+
+  // ADHD: One Thing Mode - show only frog task when enabled
+  const displayTasks = oneThingMode && dailyFrog
+    ? sortedTasks.filter(t => t.frog)
+    : sortedTasks;
 
   if (!isLoaded) {
     return (
@@ -1508,195 +1603,32 @@ export default function Frog() {
       />
       <SwipeableTabView>
         <div className="min-h-screen pb-32 safe-area-top">
-        {/* Glass Header */}
+        {/* ADHD-Simplified Glass Header - reduced visual noise */}
         <div className="sticky top-0 z-40 glass-dark safe-area-top">
-          <div className="px-4 py-3">
+          <div className="px-4 py-4">
             <div className="flex items-center justify-between">
-              {/* Left: App Title & Status */}
-              <div className="flex items-center gap-3">
-                <div className="glass-icon w-11 h-11 flex items-center justify-center overflow-hidden">
+              {/* Left: Frog + Energy (tappable) */}
+              <button
+                onClick={() => setShowMoodPicker(true)}
+                className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+              >
+                <div className="glass-icon w-12 h-12 flex items-center justify-center overflow-hidden">
                   <FrogCharacter level={level} size="sm" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-lg font-bold text-white">Frog</h1>
-                    <span className={`w-2 h-2 rounded-full ${
-                      syncStatus === 'synced' ? 'bg-green-400' :
-                      syncStatus === 'syncing' ? 'bg-yellow-400 animate-pulse' :
-                      'bg-red-400'
-                    }`} />
-                  </div>
-                  {/* Tappable mood indicator */}
-                  <button 
-                    onClick={() => setShowMoodPicker(true)}
-                    className="flex items-center gap-1.5 text-white/50 text-xs hover:text-white/80 transition-colors"
-                  >
-                    <span>{ENERGY_LEVELS.find(e => e.value === energy)?.emoji}</span>
-                    <span>{ENERGY_LEVELS.find(e => e.value === energy)?.label}</span>
-                    <span className={`text-[10px] ${
-                      getMoodTrend() === 'improving' ? 'text-green-400' :
-                      getMoodTrend() === 'declining' ? 'text-orange-400' :
-                      'text-white/30'
-                    }`}>
-                      {getMoodTrend() === 'improving' ? '↗' : getMoodTrend() === 'declining' ? '↘' : '→'}
-                    </span>
-                    {moodLog.length > 0 && (
-                      <span className="bg-white/20 text-white/60 text-[10px] px-1.5 rounded-full">
-                        {moodLog.length}
-                      </span>
-                    )}
-                  </button>
+                <div className="text-left">
+                  <span className="text-2xl">{ENERGY_LEVELS.find(e => e.value === energy)?.emoji}</span>
+                  <p className="text-white/50 text-xs">{ENERGY_LEVELS.find(e => e.value === energy)?.label}</p>
                 </div>
-              </div>
-              
-              {/* Right: Action Buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { Haptics.light(); toggleTheme(); }}
-                  className="glass-icon-sm w-9 h-9 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity ios-button"
-                  title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                >
-                  <span className="text-lg">{isDark ? '☀️' : '🌙'}</span>
-                </button>
-                <GlassIconButton icon="🎨" onClick={() => setShowBackgroundSelector(true)} size="sm" />
-                <GlassIconButton icon="🔔" onClick={() => setShowNotifications(true)} size="sm" />
-                <Link href="/stats">
-                  <GlassIconButton icon="📊" size="sm" />
-                </Link>
-                <div className="glass-card px-3 py-2 ml-1">
-                  <p className="text-white font-bold text-sm">Lv.{level}</p>
-                  <p className="text-green-400 text-xs">{xp} XP</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Category Filter Pills */}
-            <div className="flex gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
-              <button
-                onClick={() => setSelectedCategory('all')}
-                className={`glass-button px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                  selectedCategory === 'all' ? 'bg-white/20 text-white' : 'text-white/60'
-                }`}
-              >
-                All Tasks
               </button>
-              {/* Quick Wins Filter */}
-              <button
-                onClick={() => setShowQuickWinsOnly(!showQuickWinsOnly)}
-                className={`glass-button px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 ${
-                  showQuickWinsOnly ? 'bg-yellow-500/30 text-yellow-300 ring-2 ring-yellow-500/50' : 'text-white/60'
-                }`}
-              >
-                <span>⚡</span>
-                Quick Wins
-              </button>
-              {Object.entries(CATEGORIES).map(([key, cat]) => (
-                <button
-                  key={key}
-                  onClick={() => setSelectedCategory(key)}
-                  className={`glass-button px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 ${
-                    selectedCategory === key ? 'bg-white/20 text-white' : 'text-white/60'
-                  }`}
-                >
-                  <span>{cat.emoji}</span>
-                  {cat.name}
-                </button>
-              ))}
+
+              {/* Right: Level + XP only */}
+              <div className="glass-card px-4 py-2">
+                <p className="text-white font-bold">Lv.{level}</p>
+                <p className="text-green-400 text-xs text-right">{xp} XP</p>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Daily Top 3 Section */}
-        {dailyTop3.length > 0 && (
-          <div className="px-4 mt-4">
-            <div className="glass-card p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🎯</span>
-                  <h3 className="text-white font-semibold">Today&apos;s Top 3</h3>
-                </div>
-                <div className="text-xs">
-                  <span className="text-green-400 font-bold">{getTop3Progress().completed}</span>
-                  <span className="text-white/40">/{getTop3Progress().total} done</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {dailyTop3.map((taskId, idx) => {
-                  const task = [...tasks, ...completedTasks].find(t => t.id === taskId);
-                  if (!task) return null;
-                  const isCompleted = task.completed || completedTasks.some(t => t.id === taskId);
-                  return (
-                    <div 
-                      key={taskId}
-                      className={`flex items-center gap-3 p-2 rounded-lg ${
-                        isCompleted ? 'bg-green-500/20' : 'bg-white/5'
-                      }`}
-                    >
-                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                        isCompleted ? 'bg-green-500 text-white' : 'bg-white/20 text-white/60'
-                      }`}>
-                        {isCompleted ? '✓' : idx + 1}
-                      </span>
-                      <span className={`flex-1 text-sm ${isCompleted ? 'text-white/50 line-through' : 'text-white'}`}>
-                        {task.title}
-                      </span>
-                      {!isCompleted && (
-                        <button
-                          onClick={() => startFocus(task, task.estimatedMinutes || 25)}
-                          className="text-green-400 text-xs px-2 py-1 bg-green-500/20 rounded-lg"
-                        >
-                          Start
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <button
-                onClick={() => setShowTop3Picker(true)}
-                className="w-full mt-3 text-white/40 text-xs hover:text-white/60 transition-colors"
-              >
-                Edit Top 3
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Thought Dump Quick View */}
-        {thoughtDump.length > 0 && !showTop3Picker && (
-          <div className="px-4 mt-4">
-            <div className="glass-card p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">💭</span>
-                  <h3 className="text-white font-semibold">Captured Thoughts</h3>
-                </div>
-                <span className="bg-white/20 text-white/60 text-xs px-2 py-1 rounded-full">
-                  {thoughtDump.filter(t => !t.convertedToTask).length} new
-                </span>
-              </div>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {thoughtDump.filter(t => !t.convertedToTask).slice(-3).reverse().map(thought => (
-                  <div key={thought.id} className="flex items-center gap-2 p-2 bg-white/5 rounded-lg">
-                    <p className="flex-1 text-white/80 text-sm truncate">{thought.text}</p>
-                    <button
-                      onClick={() => convertThoughtToTask(thought)}
-                      className="text-green-400 text-xs px-2 py-1 bg-green-500/20 rounded-lg whitespace-nowrap"
-                    >
-                      + Task
-                    </button>
-                    <button
-                      onClick={() => deleteThought(thought.id)}
-                      className="text-white/40 text-xs px-2 py-1 hover:text-red-400"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Daily Frog Banner */}
         {dailyFrog && !frogCompleted && (
@@ -1735,28 +1667,14 @@ export default function Frog() {
           </div>
         )}
 
-        {/* Overdue Tasks Banner */}
+        {/* Overdue Tasks Banner - uses gentle language by default */}
         <div className="px-4 mt-4">
           <OverdueTasksBanner
             tasks={tasks}
-            onTaskClick={(task) => startFocus(task, task.estimatedMinutes || 25)}
+            onTaskClick={(task) => startFocusWithStartXP(task, 2)}  // Use micro-start for overdue
+            gentleMode={settings.gentleLanguage}
           />
         </div>
-
-        {/* AI Task Suggestions */}
-        {energy && tasks.length > 0 && (
-          <div className="px-4 mt-4">
-            <AISuggestionsCard
-              tasks={tasks}
-              energyLevel={energy}
-              stats={{ streak, level, xp, tasksCompletedToday: completedTasks.filter(t => {
-                const today = new Date().toDateString();
-                return t.completed_at && new Date(t.completed_at).toDateString() === today;
-              }).length }}
-              onSelectTask={(task) => startFocus(task, task.estimatedMinutes || 25)}
-            />
-          </div>
-        )}
 
         {/* Tasks List with Pull to Refresh */}
         <PullToRefresh onRefresh={handleRefresh} className="mt-4">
@@ -1768,18 +1686,18 @@ export default function Frog() {
           )}
           
           <div className={`px-4 space-y-3 ios-scroll pb-32 ${reorderMode ? 'pt-16' : ''}`}>
-            {sortedTasks.length === 0 ? (
-            <div className="glass-card p-8 text-center float-animation">
-              <div className="text-5xl mb-4">✨</div>
-              <p className="text-white font-medium mb-2">All caught up!</p>
-              <p className="text-white/50 text-sm">Add a new task to get started</p>
-            </div>
-          ) : reorderMode ? (
-            <TapToReorderList 
-              items={sortedTasks}
+            {displayTasks.length === 0 ? (
+              <div className="glass-card p-8 text-center float-animation">
+                <div className="text-5xl mb-4">✨</div>
+                <p className="text-white font-medium mb-2">All caught up!</p>
+                <p className="text-white/50 text-sm">Add a new task to get started</p>
+              </div>
+            ) : reorderMode ? (
+            <TapToReorderList
+              items={displayTasks}
               onReorder={handleReorderTasks}
             >
-              {sortedTasks.map((task, idx) => {
+              {displayTasks.map((task, idx) => {
                 const progress = getSubtaskProgress(task.id);
                 const taskSubtasks = subtasks[task.id] || [];
                 
@@ -1816,7 +1734,7 @@ export default function Frog() {
               })}
             </TapToReorderList>
           ) : (
-            sortedTasks.map((task, idx) => {
+            displayTasks.map((task, idx) => {
               const progress = getSubtaskProgress(task.id);
               const isExpanded = expandedTask === task.id;
               const taskSubtasks = subtasks[task.id] || [];
@@ -1958,70 +1876,60 @@ export default function Frog() {
                     </div>
                   )}
                   
-                  {/* Timer Preset Buttons + Reminder */}
-                  <div className="flex gap-2 mt-3">
-                    {TIMER_PRESETS.map((preset) => (
-                      <button
-                        key={preset.minutes}
-                        onClick={(e) => { e.stopPropagation(); Haptics.medium(); startFocus(task, preset.minutes); }}
-                        className="flex-1 glass-button py-2.5 rounded-xl text-white/80 text-sm font-medium hover:text-white transition-colors ios-button"
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                    <button
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        Haptics.light();
-                        setReminderTask(task);
-                        setShowReminderPicker(true);
-                      }}
-                      className="glass-button px-3 py-2.5 rounded-xl text-white/60 hover:text-yellow-400 transition-colors"
-                      title="Set reminder"
-                    >
-                      🔔
-                    </button>
-                  </div>
+                  {/* ADHD-Simplified: Single Start Button */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); Haptics.medium(); startFocusWithStartXP(task, 2); }}
+                    className="w-full mt-3 glass-button py-3 rounded-xl text-green-400 font-semibold bg-green-500/20 border border-green-500/30 hover:bg-green-500/30 transition-colors ios-button flex items-center justify-center gap-2"
+                  >
+                    {!settings.lowStimMode && <span>⚡</span>}
+                    <span>Just Start</span>
+                  </button>
                   </div>
                 </SwipeableTask>
               );
             })
           )}
+          </div>
 
-          {/* View All / Focus Mode Toggle */}
-          {hasPriorityTasks && (
+          {/* ADHD: One Thing Mode Toggle */}
+          {dailyFrog && otherTasksCount > 0 && oneThingMode && (
             <div className="mt-6 mb-4">
-              {focusedView ? (
-                <button
-                  onClick={() => { Haptics.light(); setFocusedView(false); }}
-                  className="w-full glass-card p-4 flex items-center justify-center gap-3 hover:bg-white/10 transition-all"
-                >
-                  <span className="text-white/60">📋</span>
-                  <span className="text-white/70">
-                    View all tasks
-                    {hiddenTasksCount > 0 && (
-                      <span className="ml-2 bg-white/20 text-white/60 text-xs px-2 py-0.5 rounded-full">
-                        +{hiddenTasksCount} more
-                      </span>
-                    )}
-                  </span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => { Haptics.light(); setFocusedView(true); }}
-                  className="w-full glass-card p-4 flex items-center justify-center gap-3 bg-green-500/10 border border-green-500/20 hover:bg-green-500/20 transition-all"
-                >
-                  <span className="text-green-400">🎯</span>
-                  <span className="text-green-400">Focus on priorities only</span>
-                </button>
-              )}
+              <button
+                onClick={() => { Haptics.light(); setOneThingMode(false); }}
+                className="w-full glass-card p-4 flex items-center justify-center gap-3 hover:bg-white/10 transition-all"
+              >
+                <span className="text-white/60">📋</span>
+                <span className="text-white/70">
+                  {otherTasksCount} more task{otherTasksCount !== 1 ? 's' : ''} waiting
+                </span>
+              </button>
             </div>
           )}
-          </div>
+          {!oneThingMode && dailyFrog && (
+            <div className="mt-6 mb-4">
+              <button
+                onClick={() => { Haptics.light(); setOneThingMode(true); }}
+                className="w-full glass-card p-4 flex items-center justify-center gap-3 bg-green-500/10 border border-green-500/20 hover:bg-green-500/20 transition-all"
+              >
+                <span className="text-green-400">🎯</span>
+                <span className="text-green-400">Focus on frog only</span>
+              </button>
+            </div>
+          )}
         </PullToRefresh>
 
         {/* Floating Action Buttons */}
         <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-30">
+          {/* ADHD: Pick For Me - overcomes decision paralysis */}
+          {tasks.length > 0 && (
+            <button
+              onClick={handlePickForMe}
+              className={`glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform bg-gradient-to-br from-purple-500/30 to-pink-500/30 border-2 border-purple-400/30 ${!settings.lowStimMode ? 'animate-pulse-subtle' : ''}`}
+              title="Pick a task for me!"
+            >
+              🎲
+            </button>
+          )}
           <button
             onClick={() => { Haptics.medium(); setShowAddTask(true); }}
             className="glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform"
@@ -2068,118 +1976,6 @@ export default function Frog() {
             </button>
           </div>
         </div>
-
-        {/* Daily Top 3 Picker Modal */}
-        {showTop3Picker && (
-          <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center pt-16 sm:pt-0">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => dailyTop3.length > 0 && setShowTop3Picker(false)} />
-            <div className="relative w-full max-w-md mx-4 mt-4 sm:mt-0 animate-slide-down max-h-[80vh] overflow-hidden">
-              <div className="glass-card p-6 overflow-y-auto max-h-[80vh]">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                      <span>🎯</span> Pick Your Top 3
-                    </h2>
-                    <p className="text-white/50 text-sm mt-1">What MUST get done today?</p>
-                  </div>
-                  {dailyTop3.length > 0 && (
-                    <button 
-                      onClick={() => setShowTop3Picker(false)} 
-                      className="glass-icon-sm w-10 h-10 flex items-center justify-center text-white/60"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-                
-                {/* Selection counter */}
-                <div className="flex items-center gap-3 mb-4 p-3 bg-white/5 rounded-xl">
-                  <div className="flex gap-1">
-                    {[0, 1, 2].map(i => (
-                      <div 
-                        key={i}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                          i < dailyTop3.length 
-                            ? 'bg-green-500 text-white scale-110' 
-                            : 'bg-white/10 text-white/30'
-                        }`}
-                      >
-                        {i < dailyTop3.length ? '✓' : i + 1}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-white/60 text-sm">
-                    {dailyTop3.length === 0 && "Select your 3 most important tasks"}
-                    {dailyTop3.length === 1 && "Great start! Pick 2 more"}
-                    {dailyTop3.length === 2 && "Almost there! Pick 1 more"}
-                    {dailyTop3.length === 3 && "Perfect! You're focused"}
-                  </p>
-                </div>
-                
-                {/* Task list to select from */}
-                <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
-                  {tasks.filter(t => !t.completed).map(task => {
-                    const isSelected = dailyTop3.includes(task.id);
-                    const selectionIndex = dailyTop3.indexOf(task.id);
-                    return (
-                      <button
-                        key={task.id}
-                        onClick={() => toggleTop3(task.id)}
-                        disabled={!isSelected && dailyTop3.length >= 3}
-                        className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all ${
-                          isSelected 
-                            ? 'bg-green-500/20 ring-2 ring-green-500/50' 
-                            : dailyTop3.length >= 3
-                              ? 'bg-white/5 opacity-40 cursor-not-allowed'
-                              : 'bg-white/5 hover:bg-white/10'
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                          isSelected ? 'bg-green-500 text-white' : 'bg-white/10 text-white/40'
-                        }`}>
-                          {isSelected ? selectionIndex + 1 : '○'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-medium truncate ${isSelected ? 'text-white' : 'text-white/80'}`}>
-                            {task.title}
-                          </p>
-                          <p className="text-white/40 text-xs flex items-center gap-2">
-                            <span>{CATEGORIES[task.category]?.emoji}</span>
-                            <span>{task.estimatedMinutes || 25}m</span>
-                            {task.frog && <span>🐸</span>}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                {/* Confirm button */}
-                <button
-                  onClick={() => setShowTop3Picker(false)}
-                  disabled={dailyTop3.length === 0}
-                  className={`w-full py-4 rounded-xl font-semibold transition-all ${
-                    dailyTop3.length > 0
-                      ? 'bg-green-500 text-white hover:bg-green-600'
-                      : 'bg-white/10 text-white/30 cursor-not-allowed'
-                  }`}
-                >
-                  {dailyTop3.length === 0 ? 'Pick at least 1 task' : `Lock In ${dailyTop3.length} Task${dailyTop3.length > 1 ? 's' : ''}`}
-                </button>
-                
-                {/* Skip option */}
-                {dailyTop3.length === 0 && (
-                  <button
-                    onClick={() => { setShowTop3Picker(false); setDailyTop3([]); }}
-                    className="w-full mt-3 text-white/40 text-sm hover:text-white/60"
-                  >
-                    Skip for today
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Settings Modal */}
         {showSettings && (
@@ -2334,7 +2130,63 @@ export default function Frog() {
                     </div>
                   </div>
                 </div>
-                
+
+                {/* ADHD-Friendly Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span>🧠</span> ADHD-Friendly
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🌙</span>
+                        <div>
+                          <p className="text-white font-medium">Low Stim Mode</p>
+                          <p className="text-white/40 text-xs">Reduce animations & visual noise</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('lowStimMode')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.lowStimMode ? 'bg-purple-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.lowStimMode ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">💚</span>
+                        <div>
+                          <p className="text-white font-medium">Gentle Language</p>
+                          <p className="text-white/40 text-xs">Encouraging, non-pressuring words</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('gentleLanguage')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.gentleLanguage ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.gentleLanguage ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Quick explanation */}
+                    <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                      <p className="text-purple-300 text-xs">
+                        <strong>Pick For Me 🎲</strong> button appears when you have tasks - tap it to overcome decision paralysis!
+                        The <strong>2m timer</strong> helps you just get started.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Appearance Section */}
                 <div className="mb-6">
                   <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Appearance</h3>
@@ -2897,6 +2749,87 @@ export default function Frog() {
 
         {/* Achievement Unlock Popup */}
         <AchievementPopup />
+
+        {/* ADHD: Welcome Back Modal - Distraction Recovery */}
+        {showWelcomeBack && taskInProgress && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowWelcomeBack(false)} />
+            <div className={`relative w-full max-w-sm mx-4 ${!settings.lowStimMode ? 'animate-bounce-in' : 'animate-slide-up'}`}>
+              <div className="glass-card p-6 text-center">
+                {/* Friendly welcome */}
+                <div className={`text-6xl mb-4 ${!settings.lowStimMode ? 'animate-wave' : ''}`}>
+                  👋
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  Welcome back!
+                </h2>
+                <p className="text-white/60 mb-6">
+                  {settings.gentleLanguage
+                    ? "No worries - distractions happen! Ready to jump back in?"
+                    : "You were working on something. Want to continue?"}
+                </p>
+
+                {/* Task reminder */}
+                <div className="glass-card p-4 mb-6 text-left bg-white/5">
+                  <p className="text-white/50 text-xs uppercase tracking-wider mb-2">You were working on:</p>
+                  <div className="flex items-center gap-3">
+                    <div className="glass-icon-sm w-10 h-10 flex items-center justify-center">
+                      <span className="text-xl">{CATEGORIES[taskInProgress.category]?.emoji}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{taskInProgress.title}</p>
+                      {taskInProgress.frog && <span className="text-sm">🐸 Your frog!</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      setShowWelcomeBack(false);
+                      startFocusWithStartXP(taskInProgress, 2);  // 2-min micro-start to ease back in
+                    }}
+                    className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-green-500/20 border-green-500/30 hover:bg-green-500/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>⚡</span>
+                    <span>Jump back in (2 min)</span>
+                  </button>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setShowWelcomeBack(false);
+                        setTaskInProgress(null);
+                        Storage.set('taskInProgress', null);
+                      }}
+                      className="flex-1 glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                    >
+                      Different task
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowWelcomeBack(false);
+                        setTaskInProgress(null);
+                        Storage.set('taskInProgress', null);
+                      }}
+                      className="flex-1 glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                    >
+                      Just browsing
+                    </button>
+                  </div>
+                </div>
+
+                {/* Encouraging message */}
+                <p className="text-white/40 text-xs mt-4">
+                  {settings.gentleLanguage
+                    ? "Every return is a win! You're doing great. 💪"
+                    : "Ready when you are."}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       </SwipeableTabView>
     </PageBackground>

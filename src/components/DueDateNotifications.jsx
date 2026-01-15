@@ -27,7 +27,8 @@ const getReminderOffset = (reminderType) => {
 };
 
 // Format due date for display
-export const formatDueDate = (dueDate) => {
+// gentleMode parameter uses encouraging language instead of "overdue"
+export const formatDueDate = (dueDate, gentleMode = true) => {
   if (!dueDate) return null;
 
   const now = new Date();
@@ -42,11 +43,20 @@ export const formatDueDate = (dueDate) => {
   const timeStr = hasTime ? due.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
 
   if (diffMs < 0) {
-    // Overdue
-    if (diffDays === 0 && hasTime) {
-      return { text: `Overdue ${timeStr}`, color: '#ef4444', isOverdue: true };
+    // Past due - use gentle language
+    if (gentleMode) {
+      if (diffDays === 0 && hasTime) {
+        return { text: `Waiting since ${timeStr}`, color: '#f97316', isOverdue: true };  // Orange, not red
+      }
+      const days = Math.abs(diffDays);
+      return { text: `Waiting ${days} day${days !== 1 ? 's' : ''}`, color: '#f97316', isOverdue: true };
+    } else {
+      // Traditional language
+      if (diffDays === 0 && hasTime) {
+        return { text: `Overdue ${timeStr}`, color: '#ef4444', isOverdue: true };
+      }
+      return { text: `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays) !== 1 ? 's' : ''}`, color: '#ef4444', isOverdue: true };
     }
-    return { text: `Overdue by ${Math.abs(diffDays)} day${Math.abs(diffDays) !== 1 ? 's' : ''}`, color: '#ef4444', isOverdue: true };
   }
 
   if (diffDays === 0) {
@@ -385,8 +395,8 @@ export function useDueDateNotifications(tasks) {
   };
 }
 
-// Overdue tasks banner component
-export function OverdueTasksBanner({ tasks, onTaskClick }) {
+// Overdue tasks banner component - uses gentle, ADHD-friendly language
+export function OverdueTasksBanner({ tasks, onTaskClick, gentleMode = true }) {
   const overdueTasks = tasks?.filter(t => {
     if (!t.dueDate || t.completed) return false;
     return new Date(t.dueDate) < new Date();
@@ -394,25 +404,42 @@ export function OverdueTasksBanner({ tasks, onTaskClick }) {
 
   if (overdueTasks.length === 0) return null;
 
+  // Gentle mode uses orange/yellow tones and encouraging language
+  // Non-gentle mode uses red and "overdue"
+  const colors = gentleMode
+    ? { bg: 'bg-orange-500/10', border: 'border-orange-500/30', title: 'text-orange-400', text: 'text-orange-300/70', button: 'bg-orange-500/20 hover:bg-orange-500/30 text-orange-300' }
+    : { bg: 'bg-red-500/10', border: 'border-red-500/30', title: 'text-red-400', text: 'text-red-300/70', button: 'bg-red-500/20 hover:bg-red-500/30 text-red-300' };
+
+  const title = gentleMode
+    ? `${overdueTasks.length} task${overdueTasks.length !== 1 ? 's' : ''} waiting for you`
+    : `${overdueTasks.length} Overdue Task${overdueTasks.length !== 1 ? 's' : ''}`;
+
+  const icon = gentleMode ? '👋' : '⚠️';
+  const buttonText = gentleMode ? 'Start one' : 'View';
+
   return (
-    <div className="glass-card bg-red-500/10 border border-red-500/30 p-4 mb-4 animate-pulse-slow">
+    <div className={`glass-card ${colors.bg} border ${colors.border} p-4 mb-4`}>
       <div className="flex items-center gap-3">
-        <span className="text-2xl">⚠️</span>
+        <span className="text-2xl">{icon}</span>
         <div className="flex-1">
-          <h4 className="text-red-400 font-semibold">
-            {overdueTasks.length} Overdue Task{overdueTasks.length !== 1 ? 's' : ''}
+          <h4 className={`${colors.title} font-semibold`}>
+            {title}
           </h4>
-          <p className="text-red-300/70 text-sm">
-            {overdueTasks.slice(0, 2).map(t => t.title).join(', ')}
-            {overdueTasks.length > 2 && ` and ${overdueTasks.length - 2} more`}
+          <p className={`${colors.text} text-sm`}>
+            {gentleMode ? "No rush - just pick one when you're ready!" : (
+              <>
+                {overdueTasks.slice(0, 2).map(t => t.title).join(', ')}
+                {overdueTasks.length > 2 && ` and ${overdueTasks.length - 2} more`}
+              </>
+            )}
           </p>
         </div>
         {onTaskClick && (
           <button
             onClick={() => onTaskClick(overdueTasks[0])}
-            className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-red-300 text-sm transition-colors"
+            className={`px-3 py-1.5 ${colors.button} rounded-lg text-sm transition-colors`}
           >
-            View
+            {buttonText}
           </button>
         )}
       </div>
