@@ -44,12 +44,12 @@ const ENERGY_LEVELS = [
   { value: 4, label: 'Locked In', emoji: '🔥', color: '#ef4444', description: "Let's crush it!" },
 ];
 
-// Timer presets
+// Timer presets - includes ADHD-friendly 2-min micro-start
 const TIMER_PRESETS = [
+  { minutes: 2, label: '2m', description: 'Just start', adhd: true },  // ADHD: Overcome initiation paralysis
   { minutes: 5, label: '5m', description: 'Quick burst' },
   { minutes: 15, label: '15m', description: 'Pomodoro lite' },
   { minutes: 25, label: '25m', description: 'Pomodoro' },
-  { minutes: 45, label: '45m', description: 'Deep work' },
 ];
 // Calculate next due date for recurring tasks
 const getNextDueDate = (currentDate, recurrence) => {
@@ -184,8 +184,16 @@ export default function Frog() {
     vibration: true,
     showTaskCount: true,
     autoFilterByEnergy: true,
-    compactMode: false
+    compactMode: false,
+    lowStimMode: false,  // ADHD: Reduce animations and visual noise
+    gentleLanguage: true  // ADHD: Use encouraging language instead of pressure
   });
+
+  // ADHD Features State
+  const [showWelcomeBack, setShowWelcomeBack] = useState(false);
+  const [lastActiveTime, setLastActiveTime] = useState(null);
+  const [taskInProgress, setTaskInProgress] = useState(null);  // Track task user was working on
+  const [startedTasks, setStartedTasks] = useState({});  // Track which tasks user has started (for Start XP)
   // Thought Dump - quick capture during focus
   const [thoughtDump, setThoughtDump] = useState([]);
   const [showThoughtInput, setShowThoughtInput] = useState(false);
@@ -562,6 +570,146 @@ export default function Frog() {
     if (avgRecent < first - 0.5) return 'declining';
     return 'stable';
   };
+
+  // ===== ADHD HELPER FUNCTIONS =====
+
+  // Pick For Me - Random task selector based on current energy
+  const pickRandomTask = () => {
+    Haptics.medium();
+
+    // Filter tasks by energy level (if auto-filter enabled)
+    let eligibleTasks = tasks.filter(t => !t.completed);
+
+    if (settings.autoFilterByEnergy && energy) {
+      // Match tasks to energy: low energy = easy tasks, high energy = hard tasks
+      if (energy <= 2) {
+        eligibleTasks = eligibleTasks.filter(t => t.difficulty <= 2);
+      } else if (energy === 3) {
+        eligibleTasks = eligibleTasks.filter(t => t.difficulty <= 4);
+      }
+      // High energy (4) can do any task
+    }
+
+    // If no tasks match energy filter, fall back to all tasks
+    if (eligibleTasks.length === 0) {
+      eligibleTasks = tasks.filter(t => !t.completed);
+    }
+
+    if (eligibleTasks.length === 0) return null;
+
+    // Random selection with slight preference for frog task
+    const frogTask = eligibleTasks.find(t => t.frog);
+    if (frogTask && Math.random() > 0.7) {
+      return frogTask;
+    }
+
+    const randomIndex = Math.floor(Math.random() * eligibleTasks.length);
+    const selectedTask = eligibleTasks[randomIndex];
+
+    // Play fun sound for pick
+    if (settings.soundEffects) {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        // Playful ascending tones
+        osc.frequency.setValueAtTime(400, audioContext.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.1);
+        osc.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime + 0.2);
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.15, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        osc.start(audioContext.currentTime);
+        osc.stop(audioContext.currentTime + 0.3);
+      } catch (e) {}
+    }
+
+    return selectedTask;
+  };
+
+  // Handle Pick For Me button press
+  const handlePickForMe = () => {
+    const task = pickRandomTask();
+    if (task) {
+      // Start with micro-start (2 minutes) to overcome initiation paralysis
+      startFocusWithStartXP(task, 2);
+    }
+  };
+
+  // Start focus WITH Start XP reward (ADHD dopamine hit for just starting)
+  const startFocusWithStartXP = async (task, minutes) => {
+    // Award Start XP if this is the first time starting this task
+    if (!startedTasks[task.id]) {
+      const startXP = Math.max(2, Math.floor((task.difficulty * 10) * 0.1)); // 10% of completion XP, min 2
+      setXp(prev => prev + startXP);
+
+      // Mark task as started
+      setStartedTasks(prev => ({ ...prev, [task.id]: true }));
+      Storage.set('startedTasks', { ...startedTasks, [task.id]: true });
+
+      // Play encouraging start sound
+      if (settings.soundEffects) {
+        try {
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.frequency.value = 523.25; // C5 - bright, encouraging
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0.12, audioContext.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+          osc.start(audioContext.currentTime);
+          osc.stop(audioContext.currentTime + 0.2);
+        } catch (e) {}
+      }
+
+      if (settings.vibration && navigator.vibrate) navigator.vibrate([50, 30, 50]);
+    }
+
+    // Track for distraction recovery
+    setTaskInProgress(task);
+    setLastActiveTime(Date.now());
+    Storage.set('taskInProgress', task);
+    Storage.set('lastActiveTime', Date.now());
+
+    // Start normal focus
+    startFocus(task, minutes);
+  };
+
+  // Check for distraction recovery on visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const savedLastActive = Storage.get('lastActiveTime', null);
+        const savedTaskInProgress = Storage.get('taskInProgress', null);
+
+        if (savedLastActive && savedTaskInProgress) {
+          const timeSinceActive = Date.now() - savedLastActive;
+          // Show welcome back if gone for more than 2 minutes
+          if (timeSinceActive > 2 * 60 * 1000 && screen !== 'focus') {
+            setTaskInProgress(savedTaskInProgress);
+            setShowWelcomeBack(true);
+          }
+        }
+      } else {
+        // User is leaving - save current state
+        setLastActiveTime(Date.now());
+        Storage.set('lastActiveTime', Date.now());
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [screen]);
+
+  // Load started tasks from storage
+  useEffect(() => {
+    const savedStartedTasks = Storage.get('startedTasks', {});
+    setStartedTasks(savedStartedTasks);
+  }, []);
 
   // Rollover tasks function - move incomplete tasks from previous days
   const checkRolloverTasks = () => {
@@ -1735,11 +1883,12 @@ export default function Frog() {
           </div>
         )}
 
-        {/* Overdue Tasks Banner */}
+        {/* Overdue Tasks Banner - uses gentle language by default */}
         <div className="px-4 mt-4">
           <OverdueTasksBanner
             tasks={tasks}
-            onTaskClick={(task) => startFocus(task, task.estimatedMinutes || 25)}
+            onTaskClick={(task) => startFocusWithStartXP(task, 2)}  // Use micro-start for overdue
+            gentleMode={settings.gentleLanguage}
           />
         </div>
 
@@ -1963,9 +2112,15 @@ export default function Frog() {
                     {TIMER_PRESETS.map((preset) => (
                       <button
                         key={preset.minutes}
-                        onClick={(e) => { e.stopPropagation(); Haptics.medium(); startFocus(task, preset.minutes); }}
-                        className="flex-1 glass-button py-2.5 rounded-xl text-white/80 text-sm font-medium hover:text-white transition-colors ios-button"
+                        onClick={(e) => { e.stopPropagation(); Haptics.medium(); startFocusWithStartXP(task, preset.minutes); }}
+                        className={`flex-1 glass-button py-2.5 rounded-xl text-sm font-medium transition-colors ios-button ${
+                          preset.adhd
+                            ? 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30'
+                            : 'text-white/80 hover:text-white'
+                        }`}
+                        title={preset.description}
                       >
+                        {preset.adhd && !settings.lowStimMode && <span className="mr-1">⚡</span>}
                         {preset.label}
                       </button>
                     ))}
@@ -2022,6 +2177,16 @@ export default function Frog() {
 
         {/* Floating Action Buttons */}
         <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-30">
+          {/* ADHD: Pick For Me - overcomes decision paralysis */}
+          {tasks.length > 0 && (
+            <button
+              onClick={handlePickForMe}
+              className={`glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform bg-gradient-to-br from-purple-500/30 to-pink-500/30 border-2 border-purple-400/30 ${!settings.lowStimMode ? 'animate-pulse-subtle' : ''}`}
+              title="Pick a task for me!"
+            >
+              🎲
+            </button>
+          )}
           <button
             onClick={() => { Haptics.medium(); setShowAddTask(true); }}
             className="glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform"
@@ -2334,7 +2499,63 @@ export default function Frog() {
                     </div>
                   </div>
                 </div>
-                
+
+                {/* ADHD-Friendly Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span>🧠</span> ADHD-Friendly
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🌙</span>
+                        <div>
+                          <p className="text-white font-medium">Low Stim Mode</p>
+                          <p className="text-white/40 text-xs">Reduce animations & visual noise</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('lowStimMode')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.lowStimMode ? 'bg-purple-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.lowStimMode ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">💚</span>
+                        <div>
+                          <p className="text-white font-medium">Gentle Language</p>
+                          <p className="text-white/40 text-xs">Encouraging, non-pressuring words</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleSetting('gentleLanguage')}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          settings.gentleLanguage ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          settings.gentleLanguage ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Quick explanation */}
+                    <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                      <p className="text-purple-300 text-xs">
+                        <strong>Pick For Me 🎲</strong> button appears when you have tasks - tap it to overcome decision paralysis!
+                        The <strong>2m timer</strong> helps you just get started.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Appearance Section */}
                 <div className="mb-6">
                   <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3">Appearance</h3>
@@ -2897,6 +3118,87 @@ export default function Frog() {
 
         {/* Achievement Unlock Popup */}
         <AchievementPopup />
+
+        {/* ADHD: Welcome Back Modal - Distraction Recovery */}
+        {showWelcomeBack && taskInProgress && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowWelcomeBack(false)} />
+            <div className={`relative w-full max-w-sm mx-4 ${!settings.lowStimMode ? 'animate-bounce-in' : 'animate-slide-up'}`}>
+              <div className="glass-card p-6 text-center">
+                {/* Friendly welcome */}
+                <div className={`text-6xl mb-4 ${!settings.lowStimMode ? 'animate-wave' : ''}`}>
+                  👋
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  Welcome back!
+                </h2>
+                <p className="text-white/60 mb-6">
+                  {settings.gentleLanguage
+                    ? "No worries - distractions happen! Ready to jump back in?"
+                    : "You were working on something. Want to continue?"}
+                </p>
+
+                {/* Task reminder */}
+                <div className="glass-card p-4 mb-6 text-left bg-white/5">
+                  <p className="text-white/50 text-xs uppercase tracking-wider mb-2">You were working on:</p>
+                  <div className="flex items-center gap-3">
+                    <div className="glass-icon-sm w-10 h-10 flex items-center justify-center">
+                      <span className="text-xl">{CATEGORIES[taskInProgress.category]?.emoji}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{taskInProgress.title}</p>
+                      {taskInProgress.frog && <span className="text-sm">🐸 Your frog!</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      setShowWelcomeBack(false);
+                      startFocusWithStartXP(taskInProgress, 2);  // 2-min micro-start to ease back in
+                    }}
+                    className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-green-500/20 border-green-500/30 hover:bg-green-500/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>⚡</span>
+                    <span>Jump back in (2 min)</span>
+                  </button>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setShowWelcomeBack(false);
+                        setTaskInProgress(null);
+                        Storage.set('taskInProgress', null);
+                      }}
+                      className="flex-1 glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                    >
+                      Different task
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowWelcomeBack(false);
+                        setTaskInProgress(null);
+                        Storage.set('taskInProgress', null);
+                      }}
+                      className="flex-1 glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                    >
+                      Just browsing
+                    </button>
+                  </div>
+                </div>
+
+                {/* Encouraging message */}
+                <p className="text-white/40 text-xs mt-4">
+                  {settings.gentleLanguage
+                    ? "Every return is a win! You're doing great. 💪"
+                    : "Ready when you are."}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       </SwipeableTabView>
     </PageBackground>
