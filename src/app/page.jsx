@@ -254,6 +254,98 @@ const analyzeEnergyPatterns = (patterns, currentEnergy) => {
   return insight;
 };
 
+// PANIC BUTTON: Find the absolute easiest task
+const findEasiestTask = (tasks) => {
+  if (tasks.length === 0) return null;
+
+  // Filter incomplete tasks and sort by difficulty (lowest first)
+  const incomplete = tasks.filter(t => !t.completed);
+  if (incomplete.length === 0) return null;
+
+  // Sort by difficulty, then by shortest estimated time
+  const sorted = [...incomplete].sort((a, b) => {
+    if (a.difficulty !== b.difficulty) return a.difficulty - b.difficulty;
+    return (a.estimatedMinutes || 25) - (b.estimatedMinutes || 25);
+  });
+
+  return sorted[0];
+};
+
+// SENSORY REWARDS: Sound configurations
+const CELEBRATION_SOUNDS = {
+  chime: { frequency: 880, duration: 0.3, type: 'sine' },
+  pop: { frequency: 600, duration: 0.15, type: 'square' },
+  nature: { frequency: 440, duration: 0.5, type: 'triangle' },
+  silent: null
+};
+
+// SENSORY REWARDS: Haptic patterns
+const HAPTIC_PATTERNS = {
+  standard: [100, 50, 100],
+  gentle: [50],
+  intense: [100, 30, 100, 30, 200],
+  none: null
+};
+
+// SENSORY REWARDS: Play custom celebration sound
+const playCelebrationSound = (soundType = 'chime') => {
+  const config = CELEBRATION_SOUNDS[soundType];
+  if (!config || typeof window === 'undefined') return;
+
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.frequency.value = config.frequency;
+    oscillator.type = config.type;
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + config.duration);
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + config.duration);
+  } catch (e) {
+    console.log('Audio not available:', e);
+  }
+};
+
+// SENSORY REWARDS: Trigger custom haptic
+const triggerHaptic = (pattern = 'standard') => {
+  const vibrationPattern = HAPTIC_PATTERNS[pattern];
+  if (!vibrationPattern || typeof navigator === 'undefined' || !navigator.vibrate) return;
+  navigator.vibrate(vibrationPattern);
+};
+
+// ACCOUNTABILITY: Generate share message
+const generateAccountabilityMessage = (type, taskTitle = '', partnerName = '') => {
+  const messages = {
+    started: [
+      `Hey ${partnerName}! I just started working on "${taskTitle}" 💪`,
+      `Starting my focus session on "${taskTitle}" - wish me luck! 🐸`,
+      `Time to eat my frog! Working on "${taskTitle}" now.`
+    ],
+    completed: [
+      `I did it ${partnerName}! Finished "${taskTitle}" ✅`,
+      `Frog eaten! "${taskTitle}" is done 🐸✨`,
+      `Task complete: "${taskTitle}" - feeling accomplished!`
+    ],
+    frogEaten: [
+      `BIG WIN! I ate my frog today: "${taskTitle}" 🐸🎉`,
+      `${partnerName}, I conquered my hardest task! "${taskTitle}" is DONE!`,
+      `Frog of the day demolished: "${taskTitle}" 💪🐸`
+    ],
+    struggling: [
+      `Hey ${partnerName}, having a tough focus day. Could use some encouragement 💙`,
+      `Brain not cooperating today. Just wanted to reach out.`,
+      `Struggling to start. Sending this as my first small action.`
+    ]
+  };
+
+  const pool = messages[type] || messages.completed;
+  return pool[Math.floor(Math.random() * pool.length)];
+};
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -375,6 +467,24 @@ export default function Frog() {
   const [rewardStreak, setRewardStreak] = useState(0); // Consecutive completions for bonus
   const [lastRewardType, setLastRewardType] = useState(null); // Track variety
   const [bonusXPActive, setBonusXPActive] = useState(false); // Surprise bonus multiplier
+
+  // PANIC BUTTON / EMERGENCY MODE - When everything is overwhelming
+  const [emergencyMode, setEmergencyMode] = useState(false);
+  const [emergencyTask, setEmergencyTask] = useState(null); // The ONE easiest thing
+
+  // EXTERNAL ACCOUNTABILITY - Real human connection
+  const [accountabilityPartner, setAccountabilityPartner] = useState(null); // { name, contact }
+  const [showAccountabilitySetup, setShowAccountabilitySetup] = useState(false);
+  const [accountabilityNotifications, setAccountabilityNotifications] = useState([]); // Log of sent notifications
+
+  // SENSORY REWARD CUSTOMIZATION - Personalized dopamine delivery
+  const [sensoryPreferences, setSensoryPreferences] = useState({
+    celebrationSound: 'chime', // chime, pop, nature, silent
+    hapticPattern: 'standard', // standard, gentle, intense, none
+    visualEffect: 'confetti', // confetti, glow, minimal, none
+    messageStyle: 'mixed' // hype, gentle, playful, mixed
+  });
+
   const [userId, setUserId] = useState(null);
   
   // Dynamic categories (default + custom)
@@ -607,6 +717,18 @@ export default function Frog() {
           setRewardStreak(0);
         } else {
           setRewardStreak(savedRewardStreak);
+        }
+
+        // ACCOUNTABILITY: Load partner settings
+        const savedPartner = Storage.get('accountabilityPartner', null);
+        if (savedPartner) {
+          setAccountabilityPartner(savedPartner);
+        }
+
+        // SENSORY REWARDS: Load preferences
+        const savedSensoryPrefs = Storage.get('sensoryPreferences', null);
+        if (savedSensoryPrefs) {
+          setSensoryPreferences(prev => ({ ...prev, ...savedSensoryPrefs }));
         }
 
         // Check for rollover tasks (from previous days)
@@ -1276,9 +1398,28 @@ export default function Frog() {
       rewardStreak: newRewardStreak
     });
 
-    // Trigger confetti celebration
-    setConfettiFrog(task.frog);
-    setShowConfetti(true);
+    // SENSORY REWARDS: Trigger celebration with user preferences
+    if (sensoryPreferences.visualEffect !== 'none') {
+      setConfettiFrog(task.frog);
+      setShowConfetti(sensoryPreferences.visualEffect === 'confetti');
+    }
+
+    // Play custom celebration sound and haptic
+    if (sensoryPreferences.celebrationSound !== 'silent') {
+      playCelebrationSound(sensoryPreferences.celebrationSound);
+    }
+    if (sensoryPreferences.hapticPattern !== 'none') {
+      triggerHaptic(sensoryPreferences.hapticPattern);
+    }
+
+    // ACCOUNTABILITY: Send notification to partner if set up
+    if (accountabilityPartner) {
+      const notifType = task.frog ? 'frogEaten' : 'completed';
+      // Auto-send for frog completion, otherwise just log
+      if (task.frog) {
+        sendAccountabilityNotification(notifType, task.title);
+      }
+    }
 
     setFocusTask(null);
     setTimerStartTime(null);
@@ -1289,12 +1430,17 @@ export default function Frog() {
       setBodyDoublingStartTime(null);
     }
 
+    // EMERGENCY MODE: Exit if we were in it
+    if (emergencyMode) {
+      exitEmergencyMode(true);
+    }
+
     // Show transition screen (will auto-dismiss or user can continue)
     setShowTransition(true);
 
     Storage.set('xp', newXP);
     Storage.set('level', Math.floor(newXP / 100) + 1);
-  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive]);
+  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive, sensoryPreferences, accountabilityPartner, emergencyMode]);
 
   // TRANSITION MOMENTUM: Find the best next task to suggest
   const findNextSuggestedTask = useCallback((remainingTasks, currentEnergy, completedTask) => {
@@ -1338,6 +1484,79 @@ export default function Frog() {
       setScreen('tasks');
     }
   }, [suggestedNextTask]);
+
+  // PANIC BUTTON: Activate emergency mode
+  const activateEmergencyMode = useCallback(() => {
+    Haptics.medium();
+    const easiest = findEasiestTask(tasks);
+    setEmergencyTask(easiest);
+    setEmergencyMode(true);
+  }, [tasks]);
+
+  // PANIC BUTTON: Exit emergency mode
+  const exitEmergencyMode = useCallback((completed = false) => {
+    setEmergencyMode(false);
+    setEmergencyTask(null);
+    if (!completed) {
+      setScreen('tasks');
+    }
+  }, []);
+
+  // ACCOUNTABILITY: Send notification to partner
+  const sendAccountabilityNotification = useCallback((type, taskTitle = '') => {
+    if (!accountabilityPartner) return;
+
+    const message = generateAccountabilityMessage(type, taskTitle, accountabilityPartner.name);
+
+    // Log the notification
+    const notification = {
+      id: Date.now(),
+      type,
+      message,
+      timestamp: new Date().toISOString(),
+      sent: false // Would be true if actually sent via SMS/messaging API
+    };
+
+    setAccountabilityNotifications(prev => [...prev, notification]);
+
+    // For SMS, we use a tel: or sms: link
+    // This opens the native messaging app with pre-filled text
+    if (accountabilityPartner.contact) {
+      const smsLink = `sms:${accountabilityPartner.contact}?body=${encodeURIComponent(message)}`;
+      window.open(smsLink, '_blank');
+    }
+
+    Haptics.success();
+  }, [accountabilityPartner]);
+
+  // ACCOUNTABILITY: Save partner
+  const saveAccountabilityPartner = useCallback((name, contact) => {
+    const partner = { name, contact };
+    setAccountabilityPartner(partner);
+    Storage.set('accountabilityPartner', partner);
+    setShowAccountabilitySetup(false);
+    Haptics.success();
+  }, []);
+
+  // SENSORY REWARDS: Update preference
+  const updateSensoryPreference = useCallback((key, value) => {
+    setSensoryPreferences(prev => {
+      const updated = { ...prev, [key]: value };
+      Storage.set('sensoryPreferences', updated);
+      return updated;
+    });
+    Haptics.light();
+  }, []);
+
+  // SENSORY REWARDS: Play celebration with user preferences
+  const playCelebration = useCallback(() => {
+    if (sensoryPreferences.celebrationSound !== 'silent') {
+      playCelebrationSound(sensoryPreferences.celebrationSound);
+    }
+    if (sensoryPreferences.hapticPattern !== 'none') {
+      triggerHaptic(sensoryPreferences.hapticPattern);
+    }
+  }, [sensoryPreferences]);
 
   // Delete a task
   const handleDeleteTask = useCallback((taskId) => {
@@ -1666,6 +1885,75 @@ export default function Frog() {
           <div className="fixed bottom-32 left-1/2 -translate-x-1/2 glass-card px-6 py-3 flex items-center gap-3">
             <div className="text-2xl animate-bounce">🐸</div>
             <p className="text-white/80 text-sm">Loading your frogs...</p>
+          </div>
+        </div>
+      </PageBackground>
+    );
+  }
+
+  // ===== EMERGENCY MODE SCREEN =====
+  if (emergencyMode && emergencyTask) {
+    return (
+      <PageBackground page="home">
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 safe-area-top safe-area-bottom">
+          <div className="w-full max-w-sm">
+            {/* Calming header */}
+            <div className="text-center mb-8">
+              <div className="text-6xl mb-4">🫂</div>
+              <h1 className="text-2xl font-bold text-white mb-2">
+                It's okay. You're okay.
+              </h1>
+              <p className="text-white/60 text-sm">
+                Everything else can wait. Just this one tiny thing.
+              </p>
+            </div>
+
+            {/* The ONE task */}
+            <div className="glass-card p-6 mb-6 border-2 border-green-500/30">
+              <p className="text-white/50 text-xs uppercase tracking-wide mb-2">Your one thing:</p>
+              <p className="text-white text-xl font-medium mb-4">{emergencyTask.title}</p>
+
+              <div className="flex items-center gap-2 text-white/40 text-sm mb-6">
+                <span>⭐ {emergencyTask.difficulty}/5 difficulty</span>
+                <span>•</span>
+                <span>~{emergencyTask.estimatedMinutes || 5} min</span>
+              </div>
+
+              <button
+                onClick={() => {
+                  Haptics.medium();
+                  startFocusWithStartXP(emergencyTask, 2);
+                }}
+                className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-green-500/20 border-green-500/30 hover:bg-green-500/30 transition-all"
+              >
+                Just start (2 min timer)
+              </button>
+            </div>
+
+            {/* No pressure options */}
+            <div className="space-y-3">
+              <button
+                onClick={() => exitEmergencyMode(false)}
+                className="w-full glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+              >
+                I'm feeling better now
+              </button>
+
+              {accountabilityPartner && (
+                <button
+                  onClick={() => sendAccountabilityNotification('struggling', '')}
+                  className="w-full glass-button py-3 rounded-xl text-blue-400/80 hover:text-blue-400 transition-colors flex items-center justify-center gap-2"
+                >
+                  <span>💙</span>
+                  <span>Text {accountabilityPartner.name} for support</span>
+                </button>
+              )}
+            </div>
+
+            {/* Reassurance */}
+            <p className="text-white/30 text-xs text-center mt-8">
+              No XP tracking. No streaks. No pressure. Just you.
+            </p>
           </div>
         </div>
       </PageBackground>
@@ -2397,6 +2685,16 @@ export default function Frog() {
 
         {/* Floating Action Buttons */}
         <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-30">
+          {/* PANIC BUTTON: Emergency mode when overwhelmed */}
+          {tasks.length > 0 && (
+            <button
+              onClick={activateEmergencyMode}
+              className="glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-2 border-blue-400/20"
+              title="Everything is too much? Tap here."
+            >
+              🫂
+            </button>
+          )}
           {/* ADHD: Pick For Me - overcomes decision paralysis */}
           {tasks.length > 0 && (
             <button
@@ -2677,12 +2975,126 @@ export default function Frog() {
                       </button>
                     </div>
 
+                    {/* Accountability Partner */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">👥</span>
+                        <div>
+                          <p className="text-white font-medium">Accountability Partner</p>
+                          <p className="text-white/40 text-xs">
+                            {accountabilityPartner ? `Connected: ${accountabilityPartner.name}` : 'Not set up'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowAccountabilitySetup(true)}
+                        className="glass-button px-3 py-1 rounded-lg text-sm text-white/70"
+                      >
+                        {accountabilityPartner ? 'Edit' : 'Set up'}
+                      </button>
+                    </div>
+
                     {/* Quick explanation */}
                     <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
                       <p className="text-purple-300 text-xs">
-                        <strong>Pick For Me 🎲</strong> overcomes decision paralysis. <strong>2m timer</strong> helps you start.
-                        <strong> Streak Freezes ❄️</strong> protect your streak on tough days - no shame spirals!
+                        <strong>Panic Button 🫂</strong> for overwhelming moments. <strong>Accountability Partner 👥</strong> for real human support.
                       </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sensory Rewards Section */}
+                <div className="mb-6">
+                  <h3 className="text-white/60 text-sm uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span>🎵</span> Sensory Rewards
+                  </h3>
+                  <p className="text-white/40 text-xs mb-3">Customize how celebrations feel</p>
+
+                  <div className="space-y-3">
+                    {/* Celebration Sound */}
+                    <div className="p-3 bg-white/5 rounded-xl">
+                      <p className="text-white font-medium text-sm mb-2">Celebration Sound</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {['chime', 'pop', 'nature', 'silent'].map(sound => (
+                          <button
+                            key={sound}
+                            onClick={() => {
+                              updateSensoryPreference('celebrationSound', sound);
+                              if (sound !== 'silent') playCelebrationSound(sound);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+                              sensoryPreferences.celebrationSound === sound
+                                ? 'bg-green-500/30 text-green-400 border border-green-500/50'
+                                : 'bg-white/10 text-white/60'
+                            }`}
+                          >
+                            {sound === 'chime' ? '🔔 Chime' : sound === 'pop' ? '🎉 Pop' : sound === 'nature' ? '🌿 Nature' : '🔇 Silent'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Haptic Pattern */}
+                    <div className="p-3 bg-white/5 rounded-xl">
+                      <p className="text-white font-medium text-sm mb-2">Haptic Feedback</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {['standard', 'gentle', 'intense', 'none'].map(pattern => (
+                          <button
+                            key={pattern}
+                            onClick={() => {
+                              updateSensoryPreference('hapticPattern', pattern);
+                              if (pattern !== 'none') triggerHaptic(pattern);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+                              sensoryPreferences.hapticPattern === pattern
+                                ? 'bg-green-500/30 text-green-400 border border-green-500/50'
+                                : 'bg-white/10 text-white/60'
+                            }`}
+                          >
+                            {pattern === 'standard' ? '📳 Standard' : pattern === 'gentle' ? '✨ Gentle' : pattern === 'intense' ? '⚡ Intense' : '🚫 None'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Visual Effect */}
+                    <div className="p-3 bg-white/5 rounded-xl">
+                      <p className="text-white font-medium text-sm mb-2">Visual Celebration</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {['confetti', 'glow', 'minimal', 'none'].map(effect => (
+                          <button
+                            key={effect}
+                            onClick={() => updateSensoryPreference('visualEffect', effect)}
+                            className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+                              sensoryPreferences.visualEffect === effect
+                                ? 'bg-green-500/30 text-green-400 border border-green-500/50'
+                                : 'bg-white/10 text-white/60'
+                            }`}
+                          >
+                            {effect === 'confetti' ? '🎊 Confetti' : effect === 'glow' ? '✨ Glow' : effect === 'minimal' ? '💫 Minimal' : '🚫 None'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Message Style */}
+                    <div className="p-3 bg-white/5 rounded-xl">
+                      <p className="text-white font-medium text-sm mb-2">Encouragement Style</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {['mixed', 'hype', 'gentle', 'playful'].map(style => (
+                          <button
+                            key={style}
+                            onClick={() => updateSensoryPreference('messageStyle', style)}
+                            className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+                              sensoryPreferences.messageStyle === style
+                                ? 'bg-green-500/30 text-green-400 border border-green-500/50'
+                                : 'bg-white/10 text-white/60'
+                            }`}
+                          >
+                            {style === 'mixed' ? '🎭 Mixed' : style === 'hype' ? '🔥 Hype' : style === 'gentle' ? '💚 Gentle' : '😜 Playful'}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3361,6 +3773,96 @@ export default function Frog() {
         {/* Analytics Dashboard Modal */}
         {showAnalytics && (
           <AnalyticsDashboard onClose={() => setShowAnalytics(false)} />
+        )}
+
+        {/* Accountability Partner Setup Modal */}
+        {showAccountabilitySetup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAccountabilitySetup(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6">
+                <div className="text-center mb-6">
+                  <div className="text-5xl mb-3">🤝</div>
+                  <h2 className="text-2xl font-bold text-white mb-2">Accountability Partner</h2>
+                  <p className="text-white/60 text-sm">
+                    Add someone who can cheer you on when you complete tasks or help when you're struggling.
+                  </p>
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.target);
+                  const name = formData.get('partnerName')?.trim();
+                  const contact = formData.get('partnerContact')?.trim();
+                  if (name) {
+                    saveAccountabilityPartner(name, contact);
+                  }
+                }} className="space-y-4">
+                  <div>
+                    <label className="block text-white/70 text-sm mb-2">Their Name</label>
+                    <input
+                      type="text"
+                      name="partnerName"
+                      defaultValue={accountabilityPartner?.name || ''}
+                      placeholder="e.g., Mom, Best Friend, Coach"
+                      className="w-full glass-card bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-white/30"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-white/70 text-sm mb-2">Phone Number (optional)</label>
+                    <input
+                      type="tel"
+                      name="partnerContact"
+                      defaultValue={accountabilityPartner?.contact || ''}
+                      placeholder="e.g., +1 555-123-4567"
+                      className="w-full glass-card bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-white/30"
+                    />
+                    <p className="text-white/40 text-xs mt-1">For quick text updates when you complete tasks</p>
+                  </div>
+
+                  <div className="pt-2 space-y-3">
+                    <button
+                      type="submit"
+                      className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-500/30 hover:from-green-500/30 hover:to-emerald-500/30 transition-all"
+                    >
+                      {accountabilityPartner ? 'Update Partner' : 'Add Partner'}
+                    </button>
+
+                    {accountabilityPartner && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccountabilityPartner(null);
+                          Storage.set('accountabilityPartner', null);
+                          setShowAccountabilitySetup(false);
+                          Haptics.light();
+                        }}
+                        className="w-full glass-button py-3 rounded-xl text-red-400/80 hover:text-red-400 transition-colors"
+                      >
+                        Remove Partner
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowAccountabilitySetup(false)}
+                      className="w-full glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-6 pt-4 border-t border-white/10">
+                  <p className="text-white/50 text-xs text-center">
+                    💡 Having someone to share wins with can boost motivation by up to 65%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Achievement Unlock Popup */}
