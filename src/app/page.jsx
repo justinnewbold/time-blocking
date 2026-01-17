@@ -145,6 +145,115 @@ const getTimePrediction = (timeHistory, category, difficulty, estimatedMinutes) 
   }
 };
 
+// REWARD VARIETY SYSTEM: Encouraging messages pool
+const ENCOURAGING_MESSAGES = [
+  { text: "You're on fire! 🔥", type: "hype" },
+  { text: "Small wins add up! 💪", type: "gentle" },
+  { text: "Your future self thanks you!", type: "motivational" },
+  { text: "That's the momentum! 🚀", type: "hype" },
+  { text: "One step at a time 🐢", type: "gentle" },
+  { text: "Look at you being productive! ✨", type: "playful" },
+  { text: "Brain worms defeated! 🧠", type: "playful" },
+  { text: "You showed up. That matters.", type: "gentle" },
+  { text: "Dopamine delivered! 📦", type: "playful" },
+  { text: "Task crushed! 💥", type: "hype" },
+  { text: "Your frog is proud 🐸", type: "playful" },
+  { text: "Keep that beautiful momentum!", type: "motivational" },
+  { text: "You're doing the thing!", type: "gentle" },
+  { text: "Executive function: activated ⚡", type: "playful" },
+  { text: "Another one bites the dust! 🎵", type: "hype" },
+];
+
+// REWARD VARIETY: Get random encouraging message (avoiding recent ones)
+const getRandomEncouragement = (lastType = null, preferGentle = false) => {
+  let pool = ENCOURAGING_MESSAGES;
+  if (preferGentle) {
+    pool = pool.filter(m => m.type === 'gentle' || m.type === 'motivational');
+  }
+  if (lastType) {
+    pool = pool.filter(m => m.type !== lastType);
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+};
+
+// REWARD VARIETY: Check for bonus XP (10% chance, increases with streak)
+const checkBonusXP = (rewardStreak) => {
+  const baseChance = 0.1; // 10% base chance
+  const streakBonus = Math.min(rewardStreak * 0.05, 0.3); // Up to 30% bonus from streak
+  return Math.random() < (baseChance + streakBonus);
+};
+
+// BODY DOUBLING: Simulate virtual focusers (creates feeling of community)
+const getVirtualFocusersCount = () => {
+  const hour = new Date().getHours();
+  // More "people" during typical work hours
+  if (hour >= 9 && hour <= 17) {
+    return Math.floor(Math.random() * 15) + 8; // 8-22 people
+  } else if (hour >= 6 && hour <= 22) {
+    return Math.floor(Math.random() * 10) + 3; // 3-12 people
+  }
+  return Math.floor(Math.random() * 5) + 1; // 1-5 late night warriors
+};
+
+// CONTEXT-AWARE ENERGY: Get pattern key for current time
+const getEnergyPatternKey = (date = new Date()) => {
+  const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
+  const hour = date.getHours();
+  const timeBlock = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  return `${dayOfWeek}_${timeBlock}`;
+};
+
+// CONTEXT-AWARE ENERGY: Analyze patterns and generate insights
+const analyzeEnergyPatterns = (patterns, currentEnergy) => {
+  if (Object.keys(patterns).length < 5) return null; // Need some data first
+
+  const now = new Date();
+  const currentKey = getEnergyPatternKey(now);
+  const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+
+  // Find best and worst times
+  let bestTime = null;
+  let worstTime = null;
+  let bestAvg = 0;
+  let worstAvg = 5;
+
+  Object.entries(patterns).forEach(([key, data]) => {
+    if (data.count >= 2) { // Need at least 2 data points
+      const avg = data.totalEnergy / data.count;
+      if (avg > bestAvg) {
+        bestAvg = avg;
+        bestTime = key;
+      }
+      if (avg < worstAvg) {
+        worstAvg = avg;
+        worstTime = key;
+      }
+    }
+  });
+
+  // Current time pattern
+  const currentPattern = patterns[currentKey];
+  const typicalEnergy = currentPattern ? Math.round(currentPattern.totalEnergy / currentPattern.count) : null;
+
+  // Generate insight
+  let insight = null;
+  if (bestTime) {
+    const [day, time] = bestTime.split('_');
+    insight = {
+      bestTime: `${day} ${time}s`,
+      bestAvgEnergy: Math.round(bestAvg * 10) / 10,
+      currentTypical: typicalEnergy,
+      suggestion: currentEnergy && typicalEnergy && currentEnergy < typicalEnergy - 0.5
+        ? "Energy lower than usual - try quick wins today"
+        : currentEnergy && typicalEnergy && currentEnergy > typicalEnergy + 0.5
+        ? "Higher energy than usual - great day for your frog!"
+        : null
+    };
+  }
+
+  return insight;
+};
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -252,6 +361,20 @@ export default function Frog() {
   const [expandedTask, setExpandedTask] = useState(null);
   const [subtasks, setSubtasks] = useState({});  // { taskId: [{id, title, completed}] }
   const [newSubtask, setNewSubtask] = useState('');
+
+  // BODY DOUBLING MODE - Virtual accountability
+  const [bodyDoublingActive, setBodyDoublingActive] = useState(false);
+  const [virtualFocusers, setVirtualFocusers] = useState(0); // Simulated count of others focusing
+  const [bodyDoublingStartTime, setBodyDoublingStartTime] = useState(null);
+
+  // CONTEXT-AWARE ENERGY TRACKING - Learn patterns
+  const [energyPatterns, setEnergyPatterns] = useState({}); // { dayOfWeek_hour: { avgEnergy, taskCount, avgCompletionRate } }
+  const [productivityInsights, setProductivityInsights] = useState(null); // Computed insights
+
+  // REWARD VARIETY SYSTEM - Dopamine maintenance
+  const [rewardStreak, setRewardStreak] = useState(0); // Consecutive completions for bonus
+  const [lastRewardType, setLastRewardType] = useState(null); // Track variety
+  const [bonusXPActive, setBonusXPActive] = useState(false); // Surprise bonus multiplier
   const [userId, setUserId] = useState(null);
   
   // Dynamic categories (default + custom)
@@ -472,6 +595,20 @@ export default function Frog() {
         const todayThoughts = savedThoughts.filter(t => new Date(t.timestamp).toDateString() === today);
         setThoughtDump(todayThoughts);
 
+        // CONTEXT-AWARE ENERGY: Load energy patterns
+        const savedEnergyPatterns = Storage.get('energyPatterns', {});
+        setEnergyPatterns(savedEnergyPatterns);
+
+        // REWARD VARIETY: Load reward streak
+        const savedRewardStreak = Storage.get('rewardStreak', 0);
+        // Reset if last completion wasn't today
+        const lastRewardDate = Storage.get('lastRewardDate', null);
+        if (lastRewardDate !== today) {
+          setRewardStreak(0);
+        } else {
+          setRewardStreak(savedRewardStreak);
+        }
+
         // Check for rollover tasks (from previous days)
         checkRolloverTasks();
         
@@ -521,6 +658,29 @@ export default function Frog() {
       Storage.set('thoughtDump', [...otherDays, ...thoughtDump]);
     }
   }, [thoughtDump]);
+
+  // CONTEXT-AWARE ENERGY: Compute insights when energy patterns change
+  useEffect(() => {
+    if (energy && Object.keys(energyPatterns).length >= 5) {
+      const insights = analyzeEnergyPatterns(energyPatterns, energy);
+      setProductivityInsights(insights);
+    }
+  }, [energyPatterns, energy]);
+
+  // BODY DOUBLING: Periodically update virtual focuser count for realism
+  useEffect(() => {
+    if (!bodyDoublingActive) return;
+
+    const interval = setInterval(() => {
+      // Slightly vary the count every 30 seconds for realism
+      setVirtualFocusers(prev => {
+        const delta = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
+        return Math.max(1, Math.min(30, prev + delta));
+      });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [bodyDoublingActive]);
 
   // Add a quick thought (during focus mode)
   const addQuickThought = (text) => {
@@ -883,7 +1043,27 @@ export default function Frog() {
     setEnergy(value);
     Storage.set('todayEnergy', value);
     Storage.set('lastDate', new Date().toDateString());
-    
+
+    // CONTEXT-AWARE ENERGY: Track pattern
+    const patternKey = getEnergyPatternKey();
+    setEnergyPatterns(prev => {
+      const existing = prev[patternKey] || { totalEnergy: 0, count: 0, completions: 0 };
+      const updated = {
+        ...prev,
+        [patternKey]: {
+          totalEnergy: existing.totalEnergy + value,
+          count: existing.count + 1,
+          completions: existing.completions
+        }
+      };
+      Storage.set('energyPatterns', updated);
+      return updated;
+    });
+
+    // Generate productivity insights
+    const insights = analyzeEnergyPatterns(energyPatterns, value);
+    setProductivityInsights(insights);
+
     try {
       await supabase.from('focusflow_energy_log').upsert({
         user_id: userId,
@@ -893,7 +1073,7 @@ export default function Frog() {
     } catch (error) {
       console.error('Error logging energy:', error);
     }
-    
+
     setScreen('frog');
   };
 
@@ -931,7 +1111,22 @@ export default function Frog() {
   const handleCompleteTask = useCallback(async (task) => {
     const baseXP = task.difficulty * 10;
     const frogBonus = task.frog ? 20 : 0;
-    const earnedXP = baseXP + frogBonus;
+
+    // REWARD VARIETY: Check for bonus XP surprise
+    const gotBonusXP = checkBonusXP(rewardStreak);
+    const bonusMultiplier = gotBonusXP ? 1.5 : 1;
+    const earnedXP = Math.round((baseXP + frogBonus) * bonusMultiplier);
+    setBonusXPActive(gotBonusXP);
+
+    // REWARD VARIETY: Update reward streak and get encouraging message
+    const newRewardStreak = rewardStreak + 1;
+    setRewardStreak(newRewardStreak);
+    Storage.set('rewardStreak', newRewardStreak);
+    Storage.set('lastRewardDate', new Date().toDateString());
+
+    // Get varied encouraging message
+    const encouragement = getRandomEncouragement(lastRewardType, settings.gentleLanguage);
+    setLastRewardType(encouragement.type);
     
     // Calculate actual time spent (if timer was used)
     let actualMinutes = 0;
@@ -1065,12 +1260,20 @@ export default function Frog() {
     // TRANSITION MOMENTUM: Show transition screen instead of going directly to tasks
     const nextTask = findNextSuggestedTask(remainingTasks, energy, task);
     setSuggestedNextTask(nextTask);
+
+    // Get encouraging message for this completion
+    const encouragement = getRandomEncouragement(lastRewardType, settings.gentleLanguage);
+
     setCompletedTaskData({
       task,
       actualMinutes,
       estimatedMinutes,
       xpEarned: earnedXP,
-      timeDiff: actualMinutes - estimatedMinutes
+      timeDiff: actualMinutes - estimatedMinutes,
+      // REWARD VARIETY additions
+      encouragement: encouragement.text,
+      bonusXP: gotBonusXP,
+      rewardStreak: newRewardStreak
     });
 
     // Trigger confetti celebration
@@ -1080,12 +1283,18 @@ export default function Frog() {
     setFocusTask(null);
     setTimerStartTime(null);
 
+    // BODY DOUBLING: End session if active
+    if (bodyDoublingActive) {
+      setBodyDoublingActive(false);
+      setBodyDoublingStartTime(null);
+    }
+
     // Show transition screen (will auto-dismiss or user can continue)
     setShowTransition(true);
 
     Storage.set('xp', newXP);
     Storage.set('level', Math.floor(newXP / 100) + 1);
-  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy]);
+  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive]);
 
   // TRANSITION MOMENTUM: Find the best next task to suggest
   const findNextSuggestedTask = useCallback((remainingTasks, currentEnergy, completedTask) => {
@@ -1487,7 +1696,27 @@ export default function Frog() {
             <h1 className="text-3xl font-bold text-white mb-2">Good Morning!</h1>
             <p className="text-white/60">How's your energy today?</p>
           </div>
-          
+
+          {/* CONTEXT-AWARE ENERGY: Productivity Insights */}
+          {productivityInsights && (
+            <div className="px-6 mb-4">
+              <div className="glass-card p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border-purple-500/20">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-xl">📊</span>
+                  <p className="text-white/80 text-sm font-medium">Your Pattern Insight</p>
+                </div>
+                <p className="text-white/60 text-sm">
+                  Your best focus time: <span className="text-purple-300 font-medium">{productivityInsights.bestTime}</span>
+                </p>
+                {productivityInsights.suggestion && (
+                  <p className="text-blue-300 text-xs mt-2 italic">
+                    💡 {productivityInsights.suggestion}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Energy Options */}
           <div className="flex-1 px-6 pb-6">
             <div className="space-y-4">
@@ -1655,14 +1884,57 @@ export default function Frog() {
           {/* Timer Display */}
           <div className="glass-card p-8 w-full max-w-sm text-center mb-8">
             {/* Task Info */}
-            <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="flex items-center justify-center gap-3 mb-4">
               <div className="glass-icon-sm w-10 h-10 flex items-center justify-center">
                 <span className="text-xl">{CATEGORIES[focusTask.category]?.emoji}</span>
               </div>
               <p className="text-white font-medium">{focusTask.title}</p>
               {focusTask.frog && <span className="text-xl">🐸</span>}
             </div>
-            
+
+            {/* BODY DOUBLING: Virtual co-working indicator */}
+            <div className="mb-6">
+              <button
+                onClick={() => {
+                  if (!bodyDoublingActive) {
+                    setBodyDoublingActive(true);
+                    setBodyDoublingStartTime(Date.now());
+                    setVirtualFocusers(getVirtualFocusersCount());
+                  } else {
+                    setBodyDoublingActive(false);
+                    setBodyDoublingStartTime(null);
+                  }
+                  Haptics.light();
+                }}
+                className={`glass-button px-4 py-2 rounded-xl text-sm transition-all ${
+                  bodyDoublingActive ? 'bg-purple-500/30 border-purple-500/50' : 'bg-white/5'
+                }`}
+              >
+                {bodyDoublingActive ? (
+                  <span className="flex items-center gap-2 text-purple-300">
+                    <span className="flex -space-x-2">
+                      {[...Array(Math.min(3, virtualFocusers))].map((_, i) => (
+                        <span key={i} className="w-5 h-5 rounded-full bg-purple-400/50 border border-purple-300/50 flex items-center justify-center text-xs">
+                          {['👤', '🧑', '👩'][i]}
+                        </span>
+                      ))}
+                    </span>
+                    <span>{virtualFocusers} others focusing</span>
+                    <span className="animate-pulse">●</span>
+                  </span>
+                ) : (
+                  <span className="text-white/60 flex items-center gap-2">
+                    <span>👥</span> Focus with others
+                  </span>
+                )}
+              </button>
+              {bodyDoublingActive && (
+                <p className="text-purple-300/60 text-xs mt-2">
+                  You're not alone. Others are working too. 💜
+                </p>
+              )}
+            </div>
+
             {/* Big Timer */}
             <div className="text-7xl font-light text-white mb-8 font-mono tracking-wider">
               {String(timerMinutes).padStart(2, '0')}:{String(timerSeconds).padStart(2, '0')}
@@ -2919,7 +3191,30 @@ export default function Frog() {
                 <h2 className="text-2xl font-bold text-white mb-1">
                   {completedTaskData.task.frog ? 'Frog Eaten!' : 'Nice Work!'}
                 </h2>
-                <p className="text-green-400 font-semibold mb-4">+{completedTaskData.xpEarned} XP</p>
+
+                {/* REWARD VARIETY: XP with bonus indicator */}
+                <div className="mb-2">
+                  <p className={`font-semibold ${completedTaskData.bonusXP ? 'text-yellow-400' : 'text-green-400'}`}>
+                    +{completedTaskData.xpEarned} XP
+                    {completedTaskData.bonusXP && (
+                      <span className="ml-2 text-sm bg-yellow-500/20 px-2 py-0.5 rounded-full animate-pulse">
+                        ✨ BONUS!
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                {/* REWARD VARIETY: Encouraging message */}
+                <p className="text-white/80 text-sm mb-4 italic">
+                  "{completedTaskData.encouragement || "Great job!"}"
+                </p>
+
+                {/* Reward streak indicator */}
+                {completedTaskData.rewardStreak > 1 && (
+                  <div className="text-xs text-purple-400 mb-3">
+                    🔥 {completedTaskData.rewardStreak} tasks in a row today!
+                  </div>
+                )}
 
                 {/* TIME BLINDNESS FEEDBACK */}
                 {completedTaskData.actualMinutes > 0 && (
