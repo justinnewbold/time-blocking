@@ -346,6 +346,111 @@ const generateAccountabilityMessage = (type, taskTitle = '', partnerName = '') =
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
+// BAD DAY DETECTION: Threshold configurations
+const BAD_DAY_THRESHOLDS = {
+  panicButtonUses: 2,      // 2+ panic button presses
+  taskSkips: 3,            // 3+ tasks skipped/abandoned
+  focusAbandons: 2,        // 2+ focus sessions abandoned early
+  lowProgressMinutes: 20,  // 20+ mins without a completion
+  combinedScore: 5         // Weighted total for edge cases
+};
+
+// BAD DAY: Check if signals indicate a struggling day
+const checkBadDaySignals = (signals) => {
+  const score =
+    (signals.panicButtonUses * 2) +
+    (signals.taskSkips * 1) +
+    (signals.focusAbandons * 1.5) +
+    (signals.lowProgressMinutes > 20 ? 2 : 0);
+
+  return (
+    signals.panicButtonUses >= BAD_DAY_THRESHOLDS.panicButtonUses ||
+    signals.taskSkips >= BAD_DAY_THRESHOLDS.taskSkips ||
+    signals.focusAbandons >= BAD_DAY_THRESHOLDS.focusAbandons ||
+    score >= BAD_DAY_THRESHOLDS.combinedScore
+  );
+};
+
+// BAD DAY: Support messages
+const BAD_DAY_MESSAGES = {
+  detection: [
+    "Looks like today's being tough. That's okay.",
+    "Hey, noticing this might be a hard day. Want some help?",
+    "Some days are like this. No judgment here."
+  ],
+  support: [
+    "What if we made today a 'good enough' day instead of a productive day?",
+    "One tiny win is still a win. Want me to find the easiest thing?",
+    "Rest is productive too. But if you want, I can help you do just ONE thing."
+  ]
+};
+
+// TASK CHUNKING: Generate micro-step suggestions based on task
+const generateChunkSuggestions = (taskTitle, difficulty) => {
+  const title = taskTitle.toLowerCase();
+
+  // Common patterns and their breakdowns
+  if (title.includes('write') || title.includes('draft') || title.includes('email')) {
+    return [
+      `Open document/app for "${taskTitle}"`,
+      `Write just the first sentence`,
+      `Add 2-3 more sentences`,
+      `Quick review and send/save`
+    ];
+  }
+
+  if (title.includes('clean') || title.includes('organize') || title.includes('tidy')) {
+    return [
+      `Set a 5-min timer`,
+      `Pick up just 5 items`,
+      `Wipe one surface`,
+      `Put away what's in your hands`
+    ];
+  }
+
+  if (title.includes('call') || title.includes('phone') || title.includes('contact')) {
+    return [
+      `Find the phone number`,
+      `Write down 1-2 things to say`,
+      `Dial the number`,
+      `Say hello (the rest will follow)`
+    ];
+  }
+
+  if (title.includes('study') || title.includes('read') || title.includes('learn')) {
+    return [
+      `Open the material`,
+      `Read just one page/section`,
+      `Write one thing you learned`,
+      `Take a 2-min break, then one more page`
+    ];
+  }
+
+  if (title.includes('exercise') || title.includes('workout') || title.includes('gym')) {
+    return [
+      `Put on workout clothes`,
+      `Do 5 jumping jacks right now`,
+      `Set up your space/equipment`,
+      `Just 5 more minutes of movement`
+    ];
+  }
+
+  // Generic breakdown based on difficulty
+  const genericSteps = difficulty >= 3 ? [
+    `Open/prepare what you need for "${taskTitle}"`,
+    `Work on it for just 2 minutes`,
+    `Take a tiny break, then 2 more minutes`,
+    `Do one small part you've been avoiding`,
+    `Wrap up whatever you've done - it counts!`
+  ] : [
+    `Start "${taskTitle}" - just begin`,
+    `Do the easiest part first`,
+    `Finish up - you're almost there!`
+  ];
+
+  return genericSteps;
+};
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -485,6 +590,28 @@ export default function Frog() {
     messageStyle: 'mixed' // hype, gentle, playful, mixed
   });
 
+  // BAD DAY AUTO-DETECT - Proactive support when struggling
+  const [badDaySignals, setBadDaySignals] = useState({
+    panicButtonUses: 0,
+    taskSkips: 0,
+    focusAbandons: 0,
+    lowProgressMinutes: 0, // Time on app without completing anything
+    sessionStartTime: null
+  });
+  const [showBadDaySupport, setShowBadDaySupport] = useState(false);
+  const [badDayMode, setBadDayMode] = useState(false); // Reduced expectations active
+
+  // VOICE INPUT - Frictionless task capture
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const speechRecognitionRef = useRef(null);
+
+  // TASK CHUNKING - Break overwhelming tasks into micro-steps
+  const [showChunkModal, setShowChunkModal] = useState(false);
+  const [taskToChunk, setTaskToChunk] = useState(null);
+  const [suggestedChunks, setSuggestedChunks] = useState([]);
+  const [customChunks, setCustomChunks] = useState(['', '', '']);
+
   const [userId, setUserId] = useState(null);
   
   // Dynamic categories (default + custom)
@@ -546,6 +673,70 @@ export default function Frog() {
 
   // Due date notifications hook
   const { checkOverdueTasks } = useDueDateNotifications(tasks);
+
+  // VOICE INPUT: Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setVoiceSupported(true);
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          setNewTask(prev => ({
+            ...prev,
+            title: prev.title ? `${prev.title} ${transcript}` : transcript
+          }));
+          setIsListening(false);
+        };
+
+        recognition.onerror = () => {
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        speechRecognitionRef.current = recognition;
+      }
+    }
+  }, []);
+
+  // BAD DAY: Track session start and low progress time
+  useEffect(() => {
+    if (!badDaySignals.sessionStartTime) {
+      setBadDaySignals(prev => ({ ...prev, sessionStartTime: Date.now() }));
+    }
+
+    // Check for prolonged low progress every minute
+    const interval = setInterval(() => {
+      if (badDaySignals.sessionStartTime && completedTasks.length === 0) {
+        const minutesElapsed = Math.floor((Date.now() - badDaySignals.sessionStartTime) / 60000);
+        if (minutesElapsed > badDaySignals.lowProgressMinutes) {
+          setBadDaySignals(prev => ({ ...prev, lowProgressMinutes: minutesElapsed }));
+        }
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [badDaySignals.sessionStartTime, badDaySignals.lowProgressMinutes, completedTasks.length]);
+
+  // BAD DAY: Check signals and offer support proactively
+  useEffect(() => {
+    if (!badDayMode && !showBadDaySupport && checkBadDaySignals(badDaySignals)) {
+      // Delay slightly to not interrupt mid-action
+      const timeout = setTimeout(() => {
+        setShowBadDaySupport(true);
+        Haptics.light();
+      }, 2000);
+      return () => clearTimeout(timeout);
+    }
+  }, [badDaySignals, badDayMode, showBadDaySupport]);
 
   // Load data from Supabase on mount
   useEffect(() => {
@@ -1491,6 +1682,11 @@ export default function Frog() {
     const easiest = findEasiestTask(tasks);
     setEmergencyTask(easiest);
     setEmergencyMode(true);
+    // Track for bad day detection
+    setBadDaySignals(prev => ({
+      ...prev,
+      panicButtonUses: prev.panicButtonUses + 1
+    }));
   }, [tasks]);
 
   // PANIC BUTTON: Exit emergency mode
@@ -1557,6 +1753,112 @@ export default function Frog() {
       triggerHaptic(sensoryPreferences.hapticPattern);
     }
   }, [sensoryPreferences]);
+
+  // VOICE INPUT: Toggle listening
+  const toggleVoiceInput = useCallback(() => {
+    if (!voiceSupported || !speechRecognitionRef.current) return;
+
+    if (isListening) {
+      speechRecognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        speechRecognitionRef.current.start();
+        setIsListening(true);
+        Haptics.light();
+      } catch (e) {
+        console.log('Speech recognition error:', e);
+        setIsListening(false);
+      }
+    }
+  }, [voiceSupported, isListening]);
+
+  // BAD DAY: Record a signal
+  const recordBadDaySignal = useCallback((signalType) => {
+    setBadDaySignals(prev => ({
+      ...prev,
+      [signalType]: (prev[signalType] || 0) + 1
+    }));
+  }, []);
+
+  // BAD DAY: Accept support and enter reduced mode
+  const acceptBadDaySupport = useCallback(() => {
+    setBadDayMode(true);
+    setShowBadDaySupport(false);
+    Haptics.success();
+
+    // Find easiest task for them
+    const easiest = findEasiestTask(tasks);
+    if (easiest) {
+      setFocusTask(easiest);
+      setTimerMinutes(5); // Shorter timer for bad days
+      setScreen('focus');
+    }
+  }, [tasks]);
+
+  // BAD DAY: Dismiss support but don't activate mode
+  const dismissBadDaySupport = useCallback(() => {
+    setShowBadDaySupport(false);
+    // Don't show again for this session
+  }, []);
+
+  // BAD DAY: Exit bad day mode
+  const exitBadDayMode = useCallback(() => {
+    setBadDayMode(false);
+    // Reset signals for fresh tracking
+    setBadDaySignals({
+      panicButtonUses: 0,
+      taskSkips: 0,
+      focusAbandons: 0,
+      lowProgressMinutes: 0,
+      sessionStartTime: Date.now()
+    });
+  }, []);
+
+  // TASK CHUNKING: Open chunk modal for a task
+  const openChunkModal = useCallback((task) => {
+    setTaskToChunk(task);
+    const suggestions = generateChunkSuggestions(task.title, task.difficulty);
+    setSuggestedChunks(suggestions);
+    setCustomChunks(['', '', '']);
+    setShowChunkModal(true);
+    Haptics.medium();
+  }, []);
+
+  // TASK CHUNKING: Create chunk tasks from selection
+  const createChunkTasks = useCallback(async (chunks) => {
+    if (!taskToChunk || chunks.length === 0) return;
+
+    const newTasks = chunks.filter(c => c.trim()).map((chunkTitle, index) => ({
+      id: `${Date.now()}-chunk-${index}`,
+      title: chunkTitle,
+      category: taskToChunk.category,
+      difficulty: 1, // Chunks are always easy
+      frog: false,
+      estimatedMinutes: 5, // Short chunks
+      parentTaskId: taskToChunk.id,
+      isChunk: true
+    }));
+
+    // Add chunks to task list
+    setTasks(prev => [...newTasks, ...prev]);
+
+    // Optionally hide the original task (keep it but mark as "chunked")
+    setTasks(prev => prev.map(t =>
+      t.id === taskToChunk.id
+        ? { ...t, isChunked: true, chunkIds: newTasks.map(nt => nt.id) }
+        : t
+    ));
+
+    // Persist to storage
+    const savedTasks = Storage.get('tasks', []);
+    Storage.set('tasks', [...newTasks, ...savedTasks]);
+
+    setShowChunkModal(false);
+    setTaskToChunk(null);
+    setSuggestedChunks([]);
+    Haptics.success();
+  }, [taskToChunk]);
 
   // Delete a task
   const handleDeleteTask = useCallback((taskId) => {
@@ -2386,6 +2688,27 @@ export default function Frog() {
           </div>
         </div>
 
+        {/* BAD DAY MODE: Reduced expectations banner */}
+        {badDayMode && (
+          <div className="px-4 mt-2">
+            <div className="glass-card p-3 bg-blue-500/10 border border-blue-400/20 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">💙</span>
+                <div>
+                  <p className="text-blue-300 text-sm font-medium">Gentle mode active</p>
+                  <p className="text-white/50 text-xs">One tiny win is enough today</p>
+                </div>
+              </div>
+              <button
+                onClick={exitBadDayMode}
+                className="text-white/40 text-xs hover:text-white/60 px-2 py-1"
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Daily Frog Banner */}
         {dailyFrog && !frogCompleted && (
           <div className="px-4 mt-4">
@@ -2649,6 +2972,31 @@ export default function Frog() {
                     {!settings.lowStimMode && <span>⚡</span>}
                     <span>Just Start</span>
                   </button>
+
+                  {/* TASK CHUNKING: Break it down button for difficult tasks */}
+                  {task.difficulty >= 3 && !task.isChunked && !task.isChunk && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openChunkModal(task); }}
+                      className="w-full mt-2 glass-button py-2.5 rounded-xl text-purple-400/80 font-medium bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 transition-colors ios-button flex items-center justify-center gap-2 text-sm"
+                    >
+                      <span>🧩</span>
+                      <span>Too big? Break it down</span>
+                    </button>
+                  )}
+
+                  {/* Show chunk indicator if task has been chunked */}
+                  {task.isChunked && (
+                    <p className="text-purple-400/60 text-xs text-center mt-2">
+                      🧩 Broken into {task.chunkIds?.length || 0} micro-tasks
+                    </p>
+                  )}
+
+                  {/* Show parent indicator if this is a chunk */}
+                  {task.isChunk && (
+                    <p className="text-purple-400/60 text-xs text-center mt-2">
+                      🧩 Micro-step
+                    </p>
+                  )}
                   </div>
                 </SwipeableTask>
               );
@@ -3406,16 +3754,37 @@ export default function Frog() {
                 <div className="space-y-4">
                   <div>
                     <label className="text-white/60 text-sm mb-2 block">Task Name</label>
-                    <input
-                      type="text"
-                      value={newTask.title}
-                      onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="What needs to be done?"
-                      className="w-full glass-input px-4 py-3 rounded-xl text-white placeholder-white/30"
-                      autoFocus
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newTask.title}
+                        onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
+                        placeholder={isListening ? "Listening..." : "What needs to be done?"}
+                        className={`flex-1 glass-input px-4 py-3 rounded-xl text-white placeholder-white/30 ${isListening ? 'ring-2 ring-red-400/50' : ''}`}
+                        autoFocus
+                      />
+                      {voiceSupported && (
+                        <button
+                          type="button"
+                          onClick={toggleVoiceInput}
+                          className={`glass-button w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                            isListening
+                              ? 'bg-red-500/30 ring-2 ring-red-400/50 animate-pulse'
+                              : 'hover:bg-white/10'
+                          }`}
+                          title={isListening ? "Stop listening" : "Voice input"}
+                        >
+                          <span className="text-xl">{isListening ? '⏹️' : '🎤'}</span>
+                        </button>
+                      )}
+                    </div>
+                    {isListening && (
+                      <p className="text-red-400/80 text-xs mt-1 animate-pulse">
+                        🎙️ Speak now... tap again to stop
+                      </p>
+                    )}
                   </div>
-                  
+
                   <div>
                     <label className="text-white/60 text-sm mb-2 block">Category</label>
                     <div className="grid grid-cols-3 gap-2">
@@ -3858,6 +4227,159 @@ export default function Frog() {
                 <div className="mt-6 pt-4 border-t border-white/10">
                   <p className="text-white/50 text-xs text-center">
                     💡 Having someone to share wins with can boost motivation by up to 65%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BAD DAY: Proactive Support Modal */}
+        {showBadDaySupport && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismissBadDaySupport} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center">
+                <div className="text-6xl mb-4">💙</div>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  {BAD_DAY_MESSAGES.detection[Math.floor(Math.random() * BAD_DAY_MESSAGES.detection.length)]}
+                </h2>
+                <p className="text-white/60 mb-6">
+                  {BAD_DAY_MESSAGES.support[Math.floor(Math.random() * BAD_DAY_MESSAGES.support.length)]}
+                </p>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={acceptBadDaySupport}
+                    className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-blue-500/30 hover:from-blue-500/30 hover:to-cyan-500/30 transition-all"
+                  >
+                    <span className="mr-2">🌱</span>
+                    Yes, help me do just one tiny thing
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      activateEmergencyMode();
+                      setShowBadDaySupport(false);
+                    }}
+                    className="w-full glass-button py-3 rounded-xl text-white/80 hover:text-white transition-colors"
+                  >
+                    <span className="mr-2">🫂</span>
+                    Take me to emergency mode
+                  </button>
+
+                  <button
+                    onClick={dismissBadDaySupport}
+                    className="w-full glass-button py-3 rounded-xl text-white/50 hover:text-white/70 transition-colors"
+                  >
+                    I'm okay, just a rough patch
+                  </button>
+                </div>
+
+                {badDayMode && (
+                  <div className="mt-4 pt-4 border-t border-white/10">
+                    <button
+                      onClick={exitBadDayMode}
+                      className="text-white/40 text-sm hover:text-white/60"
+                    >
+                      Exit reduced expectations mode
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TASK CHUNKING: Break It Down Modal */}
+        {showChunkModal && taskToChunk && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowChunkModal(false)} />
+            <div className="relative w-full max-w-md mx-4 animate-slide-up max-h-[90vh] overflow-y-auto">
+              <div className="glass-card p-6">
+                <div className="text-center mb-6">
+                  <div className="text-5xl mb-3">🧩</div>
+                  <h2 className="text-xl font-bold text-white mb-2">Break It Down</h2>
+                  <p className="text-white/60 text-sm">
+                    "{taskToChunk.title}" feels big? Let's split it into tiny wins.
+                  </p>
+                </div>
+
+                {/* Suggested chunks */}
+                <div className="mb-6">
+                  <label className="text-white/70 text-sm mb-3 block">Suggested micro-steps:</label>
+                  <div className="space-y-2">
+                    {suggestedChunks.map((chunk, index) => (
+                      <label
+                        key={index}
+                        className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          defaultChecked={index < 3}
+                          className="w-5 h-5 rounded accent-green-500"
+                          data-chunk-index={index}
+                        />
+                        <span className="text-white text-sm flex-1">{chunk}</span>
+                        <span className="text-green-400/60 text-xs">+5 XP</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom chunks */}
+                <div className="mb-6">
+                  <label className="text-white/70 text-sm mb-3 block">Or add your own:</label>
+                  <div className="space-y-2">
+                    {customChunks.map((chunk, index) => (
+                      <input
+                        key={index}
+                        type="text"
+                        value={chunk}
+                        onChange={(e) => {
+                          const newChunks = [...customChunks];
+                          newChunks[index] = e.target.value;
+                          setCustomChunks(newChunks);
+                        }}
+                        placeholder={`Custom step ${index + 1}...`}
+                        className="w-full glass-input px-4 py-3 rounded-xl text-white placeholder-white/30 text-sm"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      // Gather selected suggested chunks
+                      const checkboxes = document.querySelectorAll('[data-chunk-index]');
+                      const selectedSuggested = Array.from(checkboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => suggestedChunks[parseInt(cb.dataset.chunkIndex)]);
+
+                      // Add custom chunks
+                      const allChunks = [...selectedSuggested, ...customChunks.filter(c => c.trim())];
+
+                      if (allChunks.length > 0) {
+                        createChunkTasks(allChunks);
+                      }
+                    }}
+                    className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-500/30 hover:from-green-500/30 hover:to-emerald-500/30 transition-all"
+                  >
+                    Create {suggestedChunks.filter((_, i) => i < 3).length + customChunks.filter(c => c.trim()).length} Micro-Tasks
+                  </button>
+
+                  <button
+                    onClick={() => setShowChunkModal(false)}
+                    className="w-full glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-white/10 text-center">
+                  <p className="text-white/40 text-xs">
+                    💡 Each micro-step earns XP independently!
                   </p>
                 </div>
               </div>
