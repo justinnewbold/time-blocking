@@ -451,6 +451,143 @@ const generateChunkSuggestions = (taskTitle, difficulty) => {
   return genericSteps;
 };
 
+// DOPAMINE PREVIEW: Calculate potential rewards for a task
+const calculateTaskRewards = (task, streak, level, isFrog, bonusActive) => {
+  const baseXP = task.difficulty * 10;
+  const frogMultiplier = isFrog ? 2 : 1;
+  const streakBonus = streak > 0 ? Math.min(streak * 2, 20) : 0;
+  const levelBonus = Math.floor(level / 5) * 5;
+  const bonusMultiplier = bonusActive ? 1.5 : 1;
+
+  const totalXP = Math.round((baseXP * frogMultiplier + streakBonus + levelBonus) * bonusMultiplier);
+
+  // Check for potential achievements
+  const potentialAchievements = [];
+  if (isFrog) potentialAchievements.push({ name: 'Frog Eater', emoji: '🐸' });
+  if (streak >= 6) potentialAchievements.push({ name: 'Week Warrior', emoji: '🔥' });
+  if (task.difficulty >= 4) potentialAchievements.push({ name: 'Challenge Accepted', emoji: '💪' });
+
+  // Motivational extras
+  const extras = [];
+  if (isFrog) extras.push('2x XP for eating your frog!');
+  if (streak > 0) extras.push(`${streak}-day streak bonus active`);
+  if (bonusActive) extras.push('🎰 Lucky bonus multiplier!');
+  if (task.difficulty >= 3) extras.push('Hard task = bigger reward!');
+
+  return {
+    baseXP,
+    totalXP,
+    streakBonus,
+    frogBonus: isFrog ? baseXP : 0,
+    potentialAchievements,
+    extras,
+    progressToNextLevel: Math.min(100, ((totalXP % 100) / 100) * 100)
+  };
+};
+
+// FOCUS BUDDY: AI response generator
+const FOCUS_BUDDY_RESPONSES = {
+  greeting: [
+    "Hey! I'm here to help you focus. What's on your mind? 💙",
+    "Hi friend! Ready to tackle something together? 🌟",
+    "Hello! I'm your focus buddy. How are you feeling about your tasks?"
+  ],
+  encouragement: [
+    "You've got this! Even starting is a huge win. 💪",
+    "Remember: progress over perfection. Any step forward counts!",
+    "Your brain is unique and powerful. Let's work WITH it today! 🧠✨",
+    "Taking breaks is productive too. You're doing great!",
+    "One tiny task at a time. That's all it takes. 🌱"
+  ],
+  stuck: [
+    "Feeling stuck is normal! Let's try the 2-minute rule: just start for 2 minutes.",
+    "What's the tiniest first step you could take? Even opening a file counts!",
+    "Sometimes our brain needs a reset. Try a 30-second stretch! 🧘",
+    "You're not lazy - you might just need a different approach. What if we made the task smaller?"
+  ],
+  celebration: [
+    "YES! Look at you go! 🎉",
+    "That's amazing progress! Your future self thanks you! 🙌",
+    "Another win in the books! You're building momentum! 🚀",
+    "Incredible! See? You CAN do hard things! 💪"
+  ],
+  overwhelmed: [
+    "It's okay to feel overwhelmed. Let's just focus on ONE thing right now. 💙",
+    "Take a deep breath. You don't have to do everything today.",
+    "What if we cleared everything and just picked the easiest task?",
+    "Your worth isn't measured by your productivity. But I believe in you! 🌟"
+  ],
+  break: [
+    "Break time is brain time! Your mind processes while you rest. 🧠",
+    "Great choice taking a break! Hydrate, stretch, breathe. 💧",
+    "Breaks make you MORE productive, not less. Science says so! 📊"
+  ]
+};
+
+const generateBuddyResponse = (userMessage, context = {}) => {
+  const msg = userMessage.toLowerCase();
+
+  // Detect intent
+  if (msg.includes('stuck') || msg.includes("can't") || msg.includes('hard')) {
+    return FOCUS_BUDDY_RESPONSES.stuck[Math.floor(Math.random() * FOCUS_BUDDY_RESPONSES.stuck.length)];
+  }
+  if (msg.includes('overwhelm') || msg.includes('too much') || msg.includes('anxious')) {
+    return FOCUS_BUDDY_RESPONSES.overwhelmed[Math.floor(Math.random() * FOCUS_BUDDY_RESPONSES.overwhelmed.length)];
+  }
+  if (msg.includes('done') || msg.includes('finished') || msg.includes('completed') || msg.includes('did it')) {
+    return FOCUS_BUDDY_RESPONSES.celebration[Math.floor(Math.random() * FOCUS_BUDDY_RESPONSES.celebration.length)];
+  }
+  if (msg.includes('break') || msg.includes('rest') || msg.includes('tired')) {
+    return FOCUS_BUDDY_RESPONSES.break[Math.floor(Math.random() * FOCUS_BUDDY_RESPONSES.break.length)];
+  }
+  if (msg.includes('hi') || msg.includes('hello') || msg.includes('hey')) {
+    return FOCUS_BUDDY_RESPONSES.greeting[Math.floor(Math.random() * FOCUS_BUDDY_RESPONSES.greeting.length)];
+  }
+
+  // Default to encouragement
+  return FOCUS_BUDDY_RESPONSES.encouragement[Math.floor(Math.random() * FOCUS_BUDDY_RESPONSES.encouragement.length)];
+};
+
+// TIME ANCHORING: Check if current time matches a high-energy pattern
+const checkTimeAnchor = (energyPatterns, currentEnergy) => {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const hour = now.getHours();
+  const key = `${dayOfWeek}_${hour}`;
+
+  const pattern = energyPatterns[key];
+  if (!pattern || pattern.taskCount < 3) return null; // Need enough data
+
+  // Check if this is typically a high-energy time
+  if (pattern.avgEnergy >= 4 && pattern.avgCompletionRate > 0.6) {
+    return {
+      type: 'peak',
+      message: `This is usually your power hour! You tend to crush tasks around ${hour}:00. Ready to tackle your frog? 🐸⚡`,
+      confidence: Math.min(pattern.taskCount / 10, 1)
+    };
+  }
+
+  // Check if energy seems low but pattern says it could be good
+  if (currentEnergy <= 2 && pattern.avgEnergy >= 3) {
+    return {
+      type: 'encourage',
+      message: `Historically, ${hour}:00 works well for you. Maybe try a quick 5-min task to build momentum? 🌱`,
+      confidence: Math.min(pattern.taskCount / 10, 1)
+    };
+  }
+
+  // Suggest break if pattern shows low productivity at this time
+  if (pattern.avgCompletionRate < 0.3 && pattern.taskCount >= 5) {
+    return {
+      type: 'rest',
+      message: `Your data shows ${hour}:00 isn't usually your peak time. Perfect for a guilt-free break! ☕`,
+      confidence: Math.min(pattern.taskCount / 10, 1)
+    };
+  }
+
+  return null;
+};
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -612,6 +749,22 @@ export default function Frog() {
   const [suggestedChunks, setSuggestedChunks] = useState([]);
   const [customChunks, setCustomChunks] = useState(['', '', '']);
 
+  // DOPAMINE PREVIEW - Show rewards before starting
+  const [showDopaminePreview, setShowDopaminePreview] = useState(false);
+  const [previewTask, setPreviewTask] = useState(null);
+  const [previewRewards, setPreviewRewards] = useState(null);
+
+  // FOCUS BUDDY - AI encouragement chat
+  const [showFocusBuddy, setShowFocusBuddy] = useState(false);
+  const [focusBuddyMessages, setFocusBuddyMessages] = useState([]);
+  const [focusBuddyInput, setFocusBuddyInput] = useState('');
+
+  // TIME ANCHORING - Smart notifications based on energy patterns
+  const [timeAnchorEnabled, setTimeAnchorEnabled] = useState(true);
+  const [lastTimeAnchorCheck, setLastTimeAnchorCheck] = useState(null);
+  const [showTimeAnchorSuggestion, setShowTimeAnchorSuggestion] = useState(false);
+  const [timeAnchorMessage, setTimeAnchorMessage] = useState(null);
+
   const [userId, setUserId] = useState(null);
   
   // Dynamic categories (default + custom)
@@ -737,6 +890,22 @@ export default function Frog() {
       return () => clearTimeout(timeout);
     }
   }, [badDaySignals, badDayMode, showBadDaySupport]);
+
+  // TIME ANCHORING: Check patterns periodically (every 30 minutes)
+  useEffect(() => {
+    if (!timeAnchorEnabled || !energy || screen !== 'tasks') return;
+
+    // Only check if we haven't checked in the last 30 minutes
+    const thirtyMinutes = 30 * 60 * 1000;
+    if (lastTimeAnchorCheck && Date.now() - lastTimeAnchorCheck < thirtyMinutes) return;
+
+    const anchor = checkTimeAnchor(energyPatterns, energy);
+    if (anchor && anchor.confidence >= 0.5) {
+      setTimeAnchorMessage(anchor);
+      setShowTimeAnchorSuggestion(true);
+      setLastTimeAnchorCheck(Date.now());
+    }
+  }, [timeAnchorEnabled, energy, energyPatterns, screen, lastTimeAnchorCheck]);
 
   // Load data from Supabase on mount
   useEffect(() => {
@@ -1860,6 +2029,80 @@ export default function Frog() {
     Haptics.success();
   }, [taskToChunk]);
 
+  // DOPAMINE PREVIEW: Show rewards before starting a task
+  const showRewardPreview = useCallback((task) => {
+    const isFrog = task.frog || (dailyFrog && dailyFrog.id === task.id);
+    const rewards = calculateTaskRewards(task, streak, level, isFrog, bonusXPActive);
+    setPreviewTask(task);
+    setPreviewRewards(rewards);
+    setShowDopaminePreview(true);
+    Haptics.light();
+  }, [streak, level, bonusXPActive, dailyFrog]);
+
+  // DOPAMINE PREVIEW: Start task from preview
+  const startFromPreview = useCallback((minutes = 25) => {
+    if (previewTask) {
+      startFocusWithStartXP(previewTask, minutes);
+      setShowDopaminePreview(false);
+      setPreviewTask(null);
+      setPreviewRewards(null);
+    }
+  }, [previewTask, startFocusWithStartXP]);
+
+  // FOCUS BUDDY: Send message to buddy
+  const sendBuddyMessage = useCallback((message) => {
+    if (!message.trim()) return;
+
+    // Add user message
+    const userMsg = {
+      id: Date.now(),
+      type: 'user',
+      text: message,
+      timestamp: new Date()
+    };
+
+    // Generate buddy response
+    const response = generateBuddyResponse(message, { energy, focusTask, tasks });
+    const buddyMsg = {
+      id: Date.now() + 1,
+      type: 'buddy',
+      text: response,
+      timestamp: new Date()
+    };
+
+    setFocusBuddyMessages(prev => [...prev, userMsg, buddyMsg]);
+    setFocusBuddyInput('');
+    Haptics.light();
+  }, [energy, focusTask, tasks]);
+
+  // FOCUS BUDDY: Open chat with initial greeting
+  const openFocusBuddy = useCallback(() => {
+    if (focusBuddyMessages.length === 0) {
+      const greeting = FOCUS_BUDDY_RESPONSES.greeting[Math.floor(Math.random() * FOCUS_BUDDY_RESPONSES.greeting.length)];
+      setFocusBuddyMessages([{
+        id: Date.now(),
+        type: 'buddy',
+        text: greeting,
+        timestamp: new Date()
+      }]);
+    }
+    setShowFocusBuddy(true);
+    Haptics.light();
+  }, [focusBuddyMessages.length]);
+
+  // TIME ANCHORING: Check patterns and show suggestion
+  const checkTimeAnchorNow = useCallback(() => {
+    if (!timeAnchorEnabled || !energyPatterns) return;
+
+    const anchor = checkTimeAnchor(energyPatterns, energy);
+    if (anchor && anchor.confidence >= 0.5) {
+      setTimeAnchorMessage(anchor);
+      setShowTimeAnchorSuggestion(true);
+      setLastTimeAnchorCheck(Date.now());
+      Haptics.light();
+    }
+  }, [timeAnchorEnabled, energyPatterns, energy]);
+
   // Delete a task
   const handleDeleteTask = useCallback((taskId) => {
     Haptics.impact('heavy');
@@ -2973,6 +3216,14 @@ export default function Frog() {
                     <span>Just Start</span>
                   </button>
 
+                  {/* DOPAMINE PREVIEW: Show what rewards await */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); showRewardPreview(task); }}
+                    className="w-full mt-2 text-center text-yellow-400/70 hover:text-yellow-400 text-xs transition-colors py-1"
+                  >
+                    🎁 Preview rewards before starting
+                  </button>
+
                   {/* TASK CHUNKING: Break it down button for difficult tasks */}
                   {task.difficulty >= 3 && !task.isChunked && !task.isChunk && (
                     <button
@@ -3033,6 +3284,14 @@ export default function Frog() {
 
         {/* Floating Action Buttons */}
         <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-30">
+          {/* FOCUS BUDDY: AI encouragement chat */}
+          <button
+            onClick={openFocusBuddy}
+            className="glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform bg-gradient-to-br from-purple-400/20 to-blue-500/20 border-2 border-purple-400/20"
+            title="Chat with Focus Buddy"
+          >
+            🤗
+          </button>
           {/* PANIC BUTTON: Emergency mode when overwhelmed */}
           {tasks.length > 0 && (
             <button
@@ -3342,10 +3601,31 @@ export default function Frog() {
                       </button>
                     </div>
 
+                    {/* Time Anchoring Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">⏰</span>
+                        <div>
+                          <p className="text-white font-medium">Smart Time Anchoring</p>
+                          <p className="text-white/40 text-xs">Get nudges during your peak productivity times</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setTimeAnchorEnabled(prev => !prev)}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          timeAnchorEnabled ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          timeAnchorEnabled ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
                     {/* Quick explanation */}
                     <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
                       <p className="text-purple-300 text-xs">
-                        <strong>Panic Button 🫂</strong> for overwhelming moments. <strong>Accountability Partner 👥</strong> for real human support.
+                        <strong>Panic Button 🫂</strong> for overwhelming moments. <strong>Accountability Partner 👥</strong> for real human support. <strong>Time Anchoring ⏰</strong> learns your patterns.
                       </p>
                     </div>
                   </div>
@@ -4383,6 +4663,210 @@ export default function Frog() {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* DOPAMINE PREVIEW: Show rewards before starting */}
+        {showDopaminePreview && previewTask && previewRewards && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDopaminePreview(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center overflow-hidden">
+                {/* Sparkle animation background */}
+                <div className="absolute inset-0 opacity-20">
+                  <div className="absolute top-4 left-4 text-2xl animate-pulse">✨</div>
+                  <div className="absolute top-8 right-8 text-xl animate-pulse" style={{ animationDelay: '0.5s' }}>⭐</div>
+                  <div className="absolute bottom-12 left-8 text-lg animate-pulse" style={{ animationDelay: '1s' }}>💫</div>
+                </div>
+
+                <div className="relative">
+                  <div className="text-5xl mb-4">🎁</div>
+                  <h2 className="text-xl font-bold text-white mb-2">Complete This & Earn</h2>
+                  <p className="text-white/60 text-sm mb-6">"{previewTask.title}"</p>
+
+                  {/* XP Preview */}
+                  <div className="glass-card bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-4 rounded-2xl mb-4">
+                    <div className="text-4xl font-bold text-green-400 mb-1">
+                      +{previewRewards.totalXP} XP
+                    </div>
+                    <div className="text-white/50 text-xs space-y-1">
+                      <p>Base: {previewRewards.baseXP} XP</p>
+                      {previewRewards.frogBonus > 0 && <p className="text-green-400">🐸 Frog bonus: +{previewRewards.frogBonus} XP</p>}
+                      {previewRewards.streakBonus > 0 && <p className="text-orange-400">🔥 Streak bonus: +{previewRewards.streakBonus} XP</p>}
+                    </div>
+                  </div>
+
+                  {/* Potential Achievements */}
+                  {previewRewards.potentialAchievements.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-white/50 text-xs mb-2">Potential achievements:</p>
+                      <div className="flex justify-center gap-2">
+                        {previewRewards.potentialAchievements.map((achievement, i) => (
+                          <div key={i} className="glass-card bg-yellow-500/10 px-3 py-1 rounded-full text-sm">
+                            <span className="mr-1">{achievement.emoji}</span>
+                            <span className="text-yellow-400/80">{achievement.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Extras */}
+                  {previewRewards.extras.length > 0 && (
+                    <div className="space-y-1 mb-6">
+                      {previewRewards.extras.map((extra, i) => (
+                        <p key={i} className="text-white/60 text-xs">✓ {extra}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => startFromPreview(2)}
+                      className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-gradient-to-r from-green-500/30 to-emerald-500/30 border-green-500/30 hover:from-green-500/40 hover:to-emerald-500/40 transition-all"
+                    >
+                      <span className="mr-2">⚡</span>
+                      Let's Go! (2 min start)
+                    </button>
+
+                    <button
+                      onClick={() => startFromPreview(25)}
+                      className="w-full glass-button py-3 rounded-xl text-white/70 hover:text-white transition-colors"
+                    >
+                      Full focus session (25 min)
+                    </button>
+
+                    <button
+                      onClick={() => setShowDopaminePreview(false)}
+                      className="w-full glass-button py-2 rounded-xl text-white/40 hover:text-white/60 transition-colors text-sm"
+                    >
+                      Maybe later
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FOCUS BUDDY: AI Chat Modal */}
+        {showFocusBuddy && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowFocusBuddy(false)} />
+            <div className="relative w-full max-w-md mx-4 mb-4 sm:mb-0 animate-slide-up max-h-[80vh] flex flex-col">
+              <div className="glass-card p-4 flex flex-col h-full max-h-[70vh]">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+                      <span className="text-xl">🤗</span>
+                    </div>
+                    <div>
+                      <h3 className="text-white font-semibold">Focus Buddy</h3>
+                      <p className="text-white/50 text-xs">Here to help you stay on track</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowFocusBuddy(false)}
+                    className="glass-icon-sm w-8 h-8 flex items-center justify-center text-white/60"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto space-y-3 mb-4 min-h-[200px]">
+                  {focusBuddyMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] p-3 rounded-2xl ${
+                          msg.type === 'user'
+                            ? 'bg-blue-500/30 text-white rounded-br-md'
+                            : 'bg-white/10 text-white/90 rounded-bl-md'
+                        }`}
+                      >
+                        <p className="text-sm">{msg.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Quick replies */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {['I\'m stuck', 'I did it!', 'Feeling overwhelmed', 'Need a break'].map((reply) => (
+                    <button
+                      key={reply}
+                      onClick={() => sendBuddyMessage(reply)}
+                      className="glass-button px-3 py-1.5 rounded-full text-xs text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                    >
+                      {reply}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={focusBuddyInput}
+                    onChange={(e) => setFocusBuddyInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && sendBuddyMessage(focusBuddyInput)}
+                    placeholder="Type a message..."
+                    className="flex-1 glass-input px-4 py-3 rounded-xl text-white placeholder-white/30 text-sm"
+                  />
+                  <button
+                    onClick={() => sendBuddyMessage(focusBuddyInput)}
+                    className="glass-button w-12 h-12 rounded-xl flex items-center justify-center text-xl hover:bg-white/10 transition-colors"
+                  >
+                    💬
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TIME ANCHORING: Smart suggestion toast */}
+        {showTimeAnchorSuggestion && timeAnchorMessage && (
+          <div className="fixed top-20 left-4 right-4 z-50 animate-slide-down">
+            <div className={`glass-card p-4 ${
+              timeAnchorMessage.type === 'peak' ? 'bg-green-500/10 border border-green-500/30' :
+              timeAnchorMessage.type === 'rest' ? 'bg-blue-500/10 border border-blue-500/30' :
+              'bg-yellow-500/10 border border-yellow-500/30'
+            }`}>
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">
+                  {timeAnchorMessage.type === 'peak' ? '⚡' :
+                   timeAnchorMessage.type === 'rest' ? '☕' : '🌱'}
+                </div>
+                <div className="flex-1">
+                  <p className="text-white text-sm">{timeAnchorMessage.message}</p>
+                  <p className="text-white/40 text-xs mt-1">Based on your productivity patterns</p>
+                </div>
+                <button
+                  onClick={() => setShowTimeAnchorSuggestion(false)}
+                  className="text-white/40 hover:text-white/60"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {timeAnchorMessage.type === 'peak' && dailyFrog && (
+                <button
+                  onClick={() => {
+                    setShowTimeAnchorSuggestion(false);
+                    showRewardPreview(dailyFrog);
+                  }}
+                  className="w-full mt-3 glass-button py-2 rounded-xl text-green-400 text-sm font-medium bg-green-500/10 hover:bg-green-500/20 transition-colors"
+                >
+                  🐸 Show me the rewards for my frog!
+                </button>
+              )}
             </div>
           </div>
         )}
