@@ -1023,6 +1023,93 @@ const DEFAULT_RITUAL_STEPS = [
   { id: 4, text: 'Set your intention', emoji: '🎯', completed: false }
 ];
 
+// ACCOMPLISHMENT JOURNAL: Generate summary for a date range
+const generateAccomplishmentSummary = (completedTasks, dateRange = 'today') => {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+
+  let startDate;
+  if (dateRange === 'today') {
+    startDate = today;
+  } else if (dateRange === 'week') {
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    startDate = weekAgo.toISOString().split('T')[0];
+  } else if (dateRange === 'month') {
+    const monthAgo = new Date(now);
+    monthAgo.setDate(monthAgo.getDate() - 30);
+    startDate = monthAgo.toISOString().split('T')[0];
+  }
+
+  const filtered = completedTasks.filter(task => {
+    const taskDate = task.completedAt ? task.completedAt.split('T')[0] : today;
+    return taskDate >= startDate;
+  });
+
+  const summary = {
+    totalTasks: filtered.length,
+    frogsEaten: filtered.filter(t => t.frog).length,
+    totalXP: filtered.reduce((sum, t) => sum + (t.earnedXP || 0), 0),
+    totalMinutes: filtered.reduce((sum, t) => sum + (t.timeData?.actual || 0), 0),
+    categories: {},
+    difficulties: { easy: 0, medium: 0, hard: 0 },
+    streakDays: 0,
+    bestDay: null,
+    tasks: filtered
+  };
+
+  // Count by category
+  filtered.forEach(task => {
+    summary.categories[task.category] = (summary.categories[task.category] || 0) + 1;
+    if (task.difficulty <= 2) summary.difficulties.easy++;
+    else if (task.difficulty <= 3) summary.difficulties.medium++;
+    else summary.difficulties.hard++;
+  });
+
+  return summary;
+};
+
+// ACCOMPLISHMENT JOURNAL: Get encouraging message based on accomplishments
+const getAccomplishmentMessage = (summary) => {
+  if (summary.totalTasks === 0) {
+    return { emoji: '🌱', text: "Every journey starts somewhere. Ready to plant a seed?" };
+  } else if (summary.frogsEaten > 0) {
+    return { emoji: '🐸', text: `You ate ${summary.frogsEaten} frog${summary.frogsEaten > 1 ? 's' : ''}! That's real courage.` };
+  } else if (summary.totalTasks >= 10) {
+    return { emoji: '🚀', text: "Double digits! You're on fire!" };
+  } else if (summary.totalTasks >= 5) {
+    return { emoji: '⭐', text: "Solid progress! Keep the momentum going." };
+  } else if (summary.difficulties.hard > 0) {
+    return { emoji: '💪', text: "You tackled the hard stuff. That takes guts!" };
+  } else {
+    return { emoji: '✨', text: `${summary.totalTasks} task${summary.totalTasks > 1 ? 's' : ''} done! Every win counts.` };
+  }
+};
+
+// TASK PARKING LOT: Reasons for parking a task
+const PARK_REASONS = [
+  { id: 'not-ready', text: 'Not ready yet', emoji: '⏳' },
+  { id: 'waiting', text: 'Waiting on someone/something', emoji: '👥' },
+  { id: 'wrong-time', text: 'Wrong time/season', emoji: '📅' },
+  { id: 'need-info', text: 'Need more information', emoji: '❓' },
+  { id: 'too-big', text: 'Too big right now', emoji: '🏔️' },
+  { id: 'lost-interest', text: "Lost interest (and that's okay)", emoji: '💭' },
+  { id: 'other', text: 'Other reason', emoji: '📝' }
+];
+
+// HYPERFOCUS GUARD: Warning messages
+const HYPERFOCUS_MESSAGES = [
+  { duration: 120, emoji: '⏰', text: "You've been at it for 2 hours! Time for a real break?" },
+  { duration: 150, emoji: '🍽️', text: "2.5 hours in! Have you eaten? Hydrated?" },
+  { duration: 180, emoji: '🌅', text: "3 hours of focus! Your brain deserves a rest." },
+  { duration: 240, emoji: '😴', text: "4 hours! Seriously, take a break. This isn't sustainable." }
+];
+
+const getHyperfocusMessage = (minutes) => {
+  const sorted = HYPERFOCUS_MESSAGES.sort((a, b) => b.duration - a.duration);
+  return sorted.find(m => minutes >= m.duration) || HYPERFOCUS_MESSAGES[0];
+};
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -1271,6 +1358,25 @@ export default function Frog() {
   const [ritualTaskPending, setRitualTaskPending] = useState(null); // Task to start after ritual
   const [ritualMinutesPending, setRitualMinutesPending] = useState(null);
   const [showRitualEditor, setShowRitualEditor] = useState(false);
+
+  // ACCOMPLISHMENT JOURNAL - Track and celebrate daily wins
+  const [showAccomplishmentJournal, setShowAccomplishmentJournal] = useState(false);
+  const [accomplishmentHistory, setAccomplishmentHistory] = useState({}); // {date: {tasks: [], xp: number, frogsEaten: number, focusMinutes: number}}
+  const [journalView, setJournalView] = useState('today'); // 'today', 'week', 'month'
+
+  // TASK PARKING LOT - Guilt-free zone for skipped tasks
+  const [parkedTasks, setParkedTasks] = useState([]); // [{task, parkedAt, reason}]
+  const [showParkingLot, setShowParkingLot] = useState(false);
+  const [showParkTaskModal, setShowParkTaskModal] = useState(false);
+  const [taskToPark, setTaskToPark] = useState(null);
+  const [parkReason, setParkReason] = useState('');
+
+  // HYPERFOCUS GUARD - Protect against burnout from extended sessions
+  const [hyperfocusGuardEnabled, setHyperfocusGuardEnabled] = useState(true);
+  const [hyperfocusThreshold, setHyperfocusThreshold] = useState(120); // Minutes before warning (default 2 hours)
+  const [sessionStartTime, setSessionStartTime] = useState(null); // When current app session started
+  const [showHyperfocusWarning, setShowHyperfocusWarning] = useState(false);
+  const [hyperfocusExtensions, setHyperfocusExtensions] = useState(0); // How many times they've extended
 
   const [userId, setUserId] = useState(null);
   
@@ -1649,6 +1755,26 @@ export default function Frog() {
         const savedRitualEnabled = Storage.get('focusRitualEnabled', true);
         setFocusRitualEnabled(savedRitualEnabled);
 
+        // ACCOMPLISHMENT JOURNAL: Load history
+        const savedAccomplishments = Storage.get('accomplishmentHistory', {});
+        if (Object.keys(savedAccomplishments).length > 0) {
+          setAccomplishmentHistory(savedAccomplishments);
+        }
+
+        // TASK PARKING LOT: Load parked tasks
+        const savedParkedTasks = Storage.get('parkedTasks', []);
+        if (savedParkedTasks.length > 0) {
+          setParkedTasks(savedParkedTasks);
+        }
+
+        // HYPERFOCUS GUARD: Load settings and start session timer
+        const savedHyperfocusEnabled = Storage.get('hyperfocusGuardEnabled', true);
+        setHyperfocusGuardEnabled(savedHyperfocusEnabled);
+        const savedThreshold = Storage.get('hyperfocusThreshold', 120);
+        setHyperfocusThreshold(savedThreshold);
+        // Start session timer when app loads
+        setSessionStartTime(Date.now());
+
         // Check for rollover tasks (from previous days)
         checkRolloverTasks();
         
@@ -1665,6 +1791,23 @@ export default function Frog() {
       Storage.set('subtasks', subtasks);
     }
   }, [subtasks]);
+
+  // HYPERFOCUS GUARD: Check session duration periodically
+  useEffect(() => {
+    if (!hyperfocusGuardEnabled || !sessionStartTime) return;
+
+    const checkInterval = setInterval(() => {
+      const minutesElapsed = Math.floor((Date.now() - sessionStartTime) / 60000);
+      const adjustedThreshold = hyperfocusThreshold + (hyperfocusExtensions * 30);
+
+      if (minutesElapsed >= adjustedThreshold && !showHyperfocusWarning) {
+        setShowHyperfocusWarning(true);
+        Haptics.medium();
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(checkInterval);
+  }, [hyperfocusGuardEnabled, sessionStartTime, hyperfocusThreshold, hyperfocusExtensions, showHyperfocusWarning]);
 
   // Save time estimates to localStorage
   useEffect(() => {
@@ -2435,6 +2578,23 @@ export default function Frog() {
     // TASK DNA: Record completion for pattern learning
     recordTaskDNA(task, true, actualMinutes);
 
+    // ACCOMPLISHMENT JOURNAL: Record this win (inline to avoid circular dependency)
+    const accomplishmentDate = new Date().toISOString().split('T')[0];
+    setAccomplishmentHistory(prev => {
+      const dayData = prev[accomplishmentDate] || { tasks: [], xp: 0, frogsEaten: 0, focusMinutes: 0 };
+      const updated = {
+        ...prev,
+        [accomplishmentDate]: {
+          tasks: [...dayData.tasks, { ...task, earnedXP, timeData, completedAt: new Date().toISOString() }],
+          xp: dayData.xp + earnedXP,
+          frogsEaten: dayData.frogsEaten + (task.frog ? 1 : 0),
+          focusMinutes: dayData.focusMinutes + actualMinutes
+        }
+      };
+      Storage.set('accomplishmentHistory', updated);
+      return updated;
+    });
+
     // QUICK WIN STREAKS: Update streak on completion (inline to avoid circular dependency)
     setQuickWinStreak(prevStreak => {
       const newStreak = prevStreak + 1;
@@ -3172,6 +3332,121 @@ export default function Frog() {
       Storage.set('focusRitualSteps', updated);
       return updated;
     });
+  }, []);
+
+  // ACCOMPLISHMENT JOURNAL: Open journal with current summary
+  const openAccomplishmentJournal = useCallback(() => {
+    setShowAccomplishmentJournal(true);
+    Haptics.light();
+  }, []);
+
+  // ACCOMPLISHMENT JOURNAL: Record completion for history
+  const recordAccomplishment = useCallback((task, xpEarned, timeData) => {
+    const today = new Date().toISOString().split('T')[0];
+    setAccomplishmentHistory(prev => {
+      const todayData = prev[today] || { tasks: [], xp: 0, frogsEaten: 0, focusMinutes: 0 };
+      const updated = {
+        ...prev,
+        [today]: {
+          tasks: [...todayData.tasks, { ...task, earnedXP: xpEarned, timeData, completedAt: new Date().toISOString() }],
+          xp: todayData.xp + xpEarned,
+          frogsEaten: todayData.frogsEaten + (task.frog ? 1 : 0),
+          focusMinutes: todayData.focusMinutes + (timeData?.actual || 0)
+        }
+      };
+      Storage.set('accomplishmentHistory', updated);
+      return updated;
+    });
+  }, []);
+
+  // TASK PARKING LOT: Park a task
+  const parkTask = useCallback((task, reason) => {
+    const parkedTask = {
+      ...task,
+      parkedAt: new Date().toISOString(),
+      reason: reason || 'other'
+    };
+
+    setParkedTasks(prev => {
+      const updated = [...prev, parkedTask];
+      Storage.set('parkedTasks', updated);
+      return updated;
+    });
+
+    // Remove from main tasks
+    setTasks(prev => prev.filter(t => t.id !== task.id));
+    const savedTasks = Storage.get('tasks', []);
+    Storage.set('tasks', savedTasks.filter(t => t.id !== task.id));
+
+    setShowParkTaskModal(false);
+    setTaskToPark(null);
+    setParkReason('');
+    Haptics.success();
+  }, []);
+
+  // TASK PARKING LOT: Unpark a task (restore to main list)
+  const unparkTask = useCallback((parkedTask) => {
+    // Remove parked metadata and add back to tasks
+    const { parkedAt, reason, ...task } = parkedTask;
+
+    setTasks(prev => [...prev, task]);
+    const savedTasks = Storage.get('tasks', []);
+    Storage.set('tasks', [...savedTasks, task]);
+
+    setParkedTasks(prev => {
+      const updated = prev.filter(t => t.id !== parkedTask.id);
+      Storage.set('parkedTasks', updated);
+      return updated;
+    });
+
+    Haptics.success();
+  }, []);
+
+  // TASK PARKING LOT: Delete parked task permanently
+  const deleteParkedTask = useCallback((taskId) => {
+    setParkedTasks(prev => {
+      const updated = prev.filter(t => t.id !== taskId);
+      Storage.set('parkedTasks', updated);
+      return updated;
+    });
+    Haptics.impact('heavy');
+  }, []);
+
+  // TASK PARKING LOT: Open park modal for a task
+  const openParkTaskModal = useCallback((task) => {
+    setTaskToPark(task);
+    setShowParkTaskModal(true);
+    Haptics.light();
+  }, []);
+
+  // HYPERFOCUS GUARD: Check session duration
+  const checkHyperfocus = useCallback(() => {
+    if (!hyperfocusGuardEnabled || !sessionStartTime) return;
+
+    const minutesElapsed = Math.floor((Date.now() - sessionStartTime) / 60000);
+    const adjustedThreshold = hyperfocusThreshold + (hyperfocusExtensions * 30); // Each extension adds 30 mins
+
+    if (minutesElapsed >= adjustedThreshold && !showHyperfocusWarning) {
+      setShowHyperfocusWarning(true);
+      Haptics.warning ? Haptics.warning() : Haptics.medium();
+    }
+  }, [hyperfocusGuardEnabled, sessionStartTime, hyperfocusThreshold, hyperfocusExtensions, showHyperfocusWarning]);
+
+  // HYPERFOCUS GUARD: Extend session
+  const extendHyperfocusSession = useCallback(() => {
+    setHyperfocusExtensions(prev => prev + 1);
+    setShowHyperfocusWarning(false);
+    Haptics.light();
+  }, []);
+
+  // HYPERFOCUS GUARD: Take break (reset session)
+  const takeHyperfocusBreak = useCallback(() => {
+    setShowHyperfocusWarning(false);
+    setSessionStartTime(null);
+    setHyperfocusExtensions(0);
+    // Also reset focus minutes for break reminder
+    setTotalFocusMinutes(0);
+    Haptics.success();
   }, []);
 
   // Delete a task
@@ -4482,6 +4757,29 @@ export default function Frog() {
 
         {/* Floating Action Buttons */}
         <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-30">
+          {/* ACCOMPLISHMENT JOURNAL: View your wins */}
+          {completedTasks.length > 0 && (
+            <button
+              onClick={openAccomplishmentJournal}
+              className="glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-2 border-green-400/20"
+              title="View your accomplishments"
+            >
+              📖
+            </button>
+          )}
+          {/* PARKING LOT: Show if there are parked tasks */}
+          {parkedTasks.length > 0 && (
+            <button
+              onClick={() => setShowParkingLot(true)}
+              className="glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border-2 border-blue-400/20 relative"
+              title="View parked tasks"
+            >
+              🅿️
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full text-xs flex items-center justify-center font-bold text-white">
+                {parkedTasks.length}
+              </span>
+            </button>
+          )}
           {/* FUTURE SELF: Show encouraging message on bad days */}
           {(badDayMode || energy <= 2) && futureSelfMessages.length > 0 && (
             <button
@@ -4987,6 +5285,72 @@ export default function Frog() {
                       )}
                     </div>
 
+                    {/* Accomplishment Journal */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">📖</span>
+                        <div>
+                          <p className="text-white font-medium">Accomplishment Journal</p>
+                          <p className="text-white/40 text-xs">
+                            View your wins and celebrate progress
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={openAccomplishmentJournal}
+                        className="glass-button px-3 py-1 rounded-lg text-sm text-white/70"
+                      >
+                        View
+                      </button>
+                    </div>
+
+                    {/* Task Parking Lot */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🅿️</span>
+                        <div>
+                          <p className="text-white font-medium">Parking Lot</p>
+                          <p className="text-white/40 text-xs">
+                            {parkedTasks.length > 0
+                              ? `${parkedTasks.length} task${parkedTasks.length !== 1 ? 's' : ''} parked`
+                              : 'Guilt-free zone for paused tasks'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowParkingLot(true)}
+                        className="glass-button px-3 py-1 rounded-lg text-sm text-white/70"
+                      >
+                        View
+                      </button>
+                    </div>
+
+                    {/* Hyperfocus Guard */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">⏰</span>
+                        <div>
+                          <p className="text-white font-medium">Hyperfocus Guard</p>
+                          <p className="text-white/40 text-xs">
+                            Warns after {hyperfocusThreshold} mins to prevent burnout
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setHyperfocusGuardEnabled(prev => !prev);
+                          Storage.set('hyperfocusGuardEnabled', !hyperfocusGuardEnabled);
+                        }}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          hyperfocusGuardEnabled ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          hyperfocusGuardEnabled ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
                     {/* Distraction Patterns Summary */}
                     {Object.keys(distractionPatterns).length > 0 && (
                       <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
@@ -5002,7 +5366,7 @@ export default function Frog() {
                     {/* Quick explanation */}
                     <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
                       <p className="text-purple-300 text-xs">
-                        <strong>Focus Ritual 🎯</strong> helps you start. <strong>Break Reminders ☕</strong> prevent burnout. <strong>Win Streaks 🔥</strong> build momentum. <strong>Task DNA 🧬</strong> learns your patterns.
+                        <strong>Journal 📖</strong> celebrates wins. <strong>Parking Lot 🅿️</strong> holds paused tasks. <strong>Hyperfocus Guard ⏰</strong> prevents burnout.
                       </p>
                     </div>
                   </div>
@@ -6691,6 +7055,261 @@ export default function Frog() {
 
                 <p className="text-white/30 text-xs text-center mt-3">
                   Complete all steps or skip to begin
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ACCOMPLISHMENT JOURNAL: Daily/Weekly summary modal */}
+        {showAccomplishmentJournal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAccomplishmentJournal(false)} />
+            <div className="relative w-full max-w-md mx-4 animate-slide-up max-h-[80vh] overflow-hidden">
+              <div className="glass-card p-6 overflow-y-auto max-h-[75vh]">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <span>📖</span> Your Wins
+                  </h2>
+                  <button
+                    onClick={() => setShowAccomplishmentJournal(false)}
+                    className="glass-icon-sm w-8 h-8 flex items-center justify-center text-white/60"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* View toggle */}
+                <div className="flex gap-2 mb-4">
+                  {['today', 'week', 'month'].map(view => (
+                    <button
+                      key={view}
+                      onClick={() => setJournalView(view)}
+                      className={`flex-1 py-2 rounded-lg text-sm transition-all ${
+                        journalView === view
+                          ? 'bg-green-500/30 text-green-400 border border-green-500/50'
+                          : 'bg-white/10 text-white/60'
+                      }`}
+                    >
+                      {view === 'today' ? 'Today' : view === 'week' ? 'This Week' : 'This Month'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Summary stats */}
+                {(() => {
+                  const summary = generateAccomplishmentSummary(completedTasks, journalView);
+                  const message = getAccomplishmentMessage(summary);
+                  return (
+                    <>
+                      <div className="glass-card bg-gradient-to-r from-green-500/10 to-blue-500/10 p-4 rounded-xl mb-4 text-center">
+                        <span className="text-4xl mb-2 block">{message.emoji}</span>
+                        <p className="text-white/80">{message.text}</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="glass-card p-3 text-center">
+                          <p className="text-2xl font-bold text-white">{summary.totalTasks}</p>
+                          <p className="text-white/50 text-xs">Tasks Done</p>
+                        </div>
+                        <div className="glass-card p-3 text-center">
+                          <p className="text-2xl font-bold text-green-400">{summary.totalXP}</p>
+                          <p className="text-white/50 text-xs">XP Earned</p>
+                        </div>
+                        <div className="glass-card p-3 text-center">
+                          <p className="text-2xl font-bold text-yellow-400">{summary.frogsEaten} 🐸</p>
+                          <p className="text-white/50 text-xs">Frogs Eaten</p>
+                        </div>
+                        <div className="glass-card p-3 text-center">
+                          <p className="text-2xl font-bold text-blue-400">{summary.totalMinutes}</p>
+                          <p className="text-white/50 text-xs">Focus Mins</p>
+                        </div>
+                      </div>
+
+                      {/* Task breakdown */}
+                      {summary.totalTasks > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-white/60 text-xs uppercase tracking-wider">Completed Tasks</p>
+                          {summary.tasks.slice(0, 10).map((task, i) => (
+                            <div key={i} className="glass-card p-2 flex items-center gap-2">
+                              <span>{task.frog ? '🐸' : '✅'}</span>
+                              <span className="text-white/80 text-sm flex-1 truncate">{task.title}</span>
+                              <span className="text-green-400 text-xs">+{task.earnedXP || 0} XP</span>
+                            </div>
+                          ))}
+                          {summary.tasks.length > 10 && (
+                            <p className="text-white/40 text-xs text-center">
+                              + {summary.tasks.length - 10} more tasks
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TASK PARKING LOT: View parked tasks modal */}
+        {showParkingLot && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowParkingLot(false)} />
+            <div className="relative w-full max-w-md mx-4 animate-slide-up max-h-[80vh] overflow-hidden">
+              <div className="glass-card p-6 overflow-y-auto max-h-[75vh]">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <span>🅿️</span> Parking Lot
+                  </h2>
+                  <button
+                    onClick={() => setShowParkingLot(false)}
+                    className="glass-icon-sm w-8 h-8 flex items-center justify-center text-white/60"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <p className="text-white/60 text-sm mb-4">
+                  Tasks resting here guilt-free. Review when ready.
+                </p>
+
+                {parkedTasks.length === 0 ? (
+                  <div className="text-center py-8">
+                    <span className="text-4xl mb-2 block">🏖️</span>
+                    <p className="text-white/60">No parked tasks</p>
+                    <p className="text-white/40 text-sm">Tasks you skip repeatedly can be parked here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {parkedTasks.map(task => {
+                      const reason = PARK_REASONS.find(r => r.id === task.reason);
+                      const daysParked = Math.floor((Date.now() - new Date(task.parkedAt).getTime()) / (1000 * 60 * 60 * 24));
+                      return (
+                        <div key={task.id} className="glass-card p-3">
+                          <div className="flex items-start gap-3">
+                            <span className="text-xl">{reason?.emoji || '📝'}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-medium truncate">{task.title}</p>
+                              <p className="text-white/40 text-xs">
+                                {reason?.text || 'Other reason'} • {daysParked === 0 ? 'Today' : `${daysParked}d ago`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => unparkTask(task)}
+                              className="flex-1 glass-button py-2 rounded-lg text-green-400 text-sm bg-green-500/10"
+                            >
+                              Restore
+                            </button>
+                            <button
+                              onClick={() => deleteParkedTask(task.id)}
+                              className="glass-button px-3 py-2 rounded-lg text-red-400/70 text-sm"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TASK PARKING LOT: Park task confirmation modal */}
+        {showParkTaskModal && taskToPark && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowParkTaskModal(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6">
+                <div className="text-center mb-4">
+                  <div className="text-4xl mb-2">🅿️</div>
+                  <h2 className="text-xl font-bold text-white">Park This Task?</h2>
+                  <p className="text-white/60 text-sm mt-1">
+                    "{taskToPark.title}"
+                  </p>
+                </div>
+
+                <p className="text-white/50 text-sm mb-3">Why are you parking this?</p>
+                <div className="space-y-2 mb-4">
+                  {PARK_REASONS.map(reason => (
+                    <button
+                      key={reason.id}
+                      onClick={() => setParkReason(reason.id)}
+                      className={`w-full glass-card p-3 flex items-center gap-3 text-left transition-all ${
+                        parkReason === reason.id
+                          ? 'bg-blue-500/20 border-blue-500/30'
+                          : 'hover:bg-white/10'
+                      }`}
+                    >
+                      <span className="text-xl">{reason.emoji}</span>
+                      <span className="text-white/80">{reason.text}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowParkTaskModal(false)}
+                    className="flex-1 glass-button py-2 rounded-xl text-white/50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => parkTask(taskToPark, parkReason)}
+                    disabled={!parkReason}
+                    className="flex-1 glass-button py-2 rounded-xl text-blue-400 font-medium bg-blue-500/10 disabled:opacity-40"
+                  >
+                    Park It 🅿️
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* HYPERFOCUS GUARD: Take a break warning */}
+        {showHyperfocusWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center border-2 border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-red-500/10">
+                {(() => {
+                  const minutesElapsed = sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 60000) : 0;
+                  const message = getHyperfocusMessage(minutesElapsed);
+                  return (
+                    <>
+                      <div className="text-5xl mb-4">{message.emoji}</div>
+                      <h2 className="text-xl font-bold text-white mb-2">Hyperfocus Alert!</h2>
+                      <p className="text-white/80 mb-4">{message.text}</p>
+                      <p className="text-orange-400 text-sm mb-6">
+                        You've been focused for {Math.floor(minutesElapsed / 60)}h {minutesElapsed % 60}m
+                      </p>
+                    </>
+                  );
+                })()}
+
+                <div className="space-y-3">
+                  <button
+                    onClick={takeHyperfocusBreak}
+                    className="w-full glass-button py-3 rounded-xl text-green-400 font-medium bg-green-500/10 border border-green-500/30"
+                  >
+                    Take a Real Break 🌴
+                  </button>
+                  <button
+                    onClick={extendHyperfocusSession}
+                    className="w-full glass-button py-2 rounded-xl text-white/50 text-sm"
+                  >
+                    30 more minutes, I'm in flow
+                  </button>
+                </div>
+
+                <p className="text-white/30 text-xs mt-4">
+                  Extensions: {hyperfocusExtensions}
                 </p>
               </div>
             </div>
