@@ -894,6 +894,135 @@ const FUTURE_SELF_PROMPTS = [
   "What's one thing you're proud of today?"
 ];
 
+// SMART BREAK REMINDERS: Break activities based on energy and time
+const BREAK_ACTIVITIES = [
+  { id: 1, text: 'Stretch for 2 minutes', emoji: '🧘', type: 'physical', energy: 'low' },
+  { id: 2, text: 'Get some water', emoji: '💧', type: 'physical', energy: 'low' },
+  { id: 3, text: 'Look away from screen (20-20-20)', emoji: '👀', type: 'rest', energy: 'low' },
+  { id: 4, text: 'Take 5 deep breaths', emoji: '🌬️', type: 'rest', energy: 'low' },
+  { id: 5, text: 'Quick walk around the room', emoji: '🚶', type: 'physical', energy: 'medium' },
+  { id: 6, text: 'Do 10 jumping jacks', emoji: '⭐', type: 'physical', energy: 'high' },
+  { id: 7, text: 'Dance to one song', emoji: '💃', type: 'physical', energy: 'high' },
+  { id: 8, text: 'Text a friend something nice', emoji: '💬', type: 'social', energy: 'medium' },
+  { id: 9, text: 'Pet an animal if available', emoji: '🐾', type: 'comfort', energy: 'low' },
+  { id: 10, text: 'Stare out a window for 1 min', emoji: '🪟', type: 'rest', energy: 'low' },
+  { id: 11, text: 'Eat a healthy snack', emoji: '🍎', type: 'physical', energy: 'medium' },
+  { id: 12, text: 'Do a quick doodle', emoji: '✏️', type: 'creative', energy: 'low' }
+];
+
+// Get break suggestion based on energy and preferences
+const getBreakSuggestion = (currentEnergy, breakCount = 0) => {
+  // Map energy to activity energy levels
+  const energyMap = {
+    1: 'low', 2: 'low', 3: 'medium', 4: 'high'
+  };
+  const targetEnergy = energyMap[currentEnergy] || 'medium';
+
+  // Filter activities, prefer matching energy but allow all
+  let options = BREAK_ACTIVITIES.filter(a => a.energy === targetEnergy);
+  if (options.length < 3) {
+    options = BREAK_ACTIVITIES; // Fall back to all
+  }
+
+  // Rotate through activities to add variety
+  const index = breakCount % options.length;
+  return options[index];
+};
+
+// Check if break is needed (after X minutes of focus)
+const BREAK_THRESHOLD_MINUTES = 50; // Suggest break after 50 mins total focus
+
+// PROCRASTINATION BUSTER: Detect stuck tasks and offer help
+const PROCRASTINATION_REASONS = [
+  { id: 'unclear', text: "I don't know where to start", emoji: '🤔', help: 'chunk' },
+  { id: 'boring', text: "It's boring or tedious", emoji: '😴', help: 'gamify' },
+  { id: 'scary', text: "I'm afraid of failing", emoji: '😰', help: 'support' },
+  { id: 'perfectionism', text: "I want it to be perfect", emoji: '✨', help: 'lower' },
+  { id: 'energy', text: "I don't have the energy", emoji: '🔋', help: 'defer' },
+  { id: 'overwhelm', text: "It feels too big", emoji: '🏔️', help: 'chunk' },
+  { id: 'distraction', text: "I keep getting distracted", emoji: '🦋', help: 'focus' },
+  { id: 'other', text: "Something else", emoji: '💭', help: 'talk' }
+];
+
+// Get procrastination help based on reason
+const getProcrastinationHelp = (reason) => {
+  const helps = {
+    chunk: {
+      title: "Let's break it down!",
+      text: "Big tasks are scary. What's the tiniest first step you could do in 2 minutes?",
+      action: "chunk"
+    },
+    gamify: {
+      title: "Let's make it fun!",
+      text: "Try the 'random minute' technique: set a timer for a random number between 5-15 and race it!",
+      action: "timer"
+    },
+    support: {
+      title: "It's okay to be imperfect",
+      text: "Done is better than perfect. What would a 'good enough' version look like?",
+      action: "lower"
+    },
+    lower: {
+      title: "Lower the bar",
+      text: "Try: 'I'll just do the worst possible version first, then improve it.'",
+      action: "start"
+    },
+    defer: {
+      title: "Not the right time",
+      text: "That's valid! Let's mark this for when you have more energy.",
+      action: "reschedule"
+    },
+    focus: {
+      title: "Focus mode activated",
+      text: "Let's try a super short 5-minute sprint. You can do anything for 5 minutes!",
+      action: "sprint"
+    },
+    talk: {
+      title: "Let's figure it out",
+      text: "Sometimes we just need to process. What's really going on with this task?",
+      action: "buddy"
+    }
+  };
+  return helps[reason] || helps.talk;
+};
+
+// Check if task is being procrastinated (3+ attempts or 2+ skips)
+const isProcrastinated = (taskAttempts, taskId) => {
+  const attempts = taskAttempts[taskId];
+  if (!attempts) return false;
+  return attempts.attempts >= 3 || attempts.skips >= 2;
+};
+
+// QUICK WIN STREAKS: Milestone definitions
+const STREAK_MILESTONES = [
+  { streak: 3, title: 'Getting Started!', emoji: '🌱', reward: 'Momentum Builder' },
+  { streak: 5, title: 'On a Roll!', emoji: '🔥', reward: 'Focus Fire' },
+  { streak: 7, title: 'Unstoppable!', emoji: '⚡', reward: 'Power Streak' },
+  { streak: 10, title: 'Legendary!', emoji: '👑', reward: 'Crown Achievement' },
+  { streak: 15, title: 'Superhuman!', emoji: '🦸', reward: 'Hero Mode' },
+  { streak: 20, title: 'Transcendent!', emoji: '✨', reward: 'Enlightened' }
+];
+
+// Get current milestone for streak
+const getStreakMilestone = (streak) => {
+  // Find highest milestone achieved
+  const achieved = STREAK_MILESTONES.filter(m => streak >= m.streak);
+  return achieved.length > 0 ? achieved[achieved.length - 1] : null;
+};
+
+// Get next milestone
+const getNextMilestone = (streak) => {
+  return STREAK_MILESTONES.find(m => m.streak > streak) || null;
+};
+
+// FOCUS RITUAL: Default ritual steps
+const DEFAULT_RITUAL_STEPS = [
+  { id: 1, text: 'Take 3 deep breaths', emoji: '🌬️', completed: false },
+  { id: 2, text: 'Clear your workspace', emoji: '🧹', completed: false },
+  { id: 3, text: 'Put phone on silent', emoji: '📱', completed: false },
+  { id: 4, text: 'Set your intention', emoji: '🎯', completed: false }
+];
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -1108,6 +1237,40 @@ export default function Frog() {
   const [futureSelfInput, setFutureSelfInput] = useState('');
   const [showFutureSelfMessage, setShowFutureSelfMessage] = useState(false);
   const [currentFutureSelfMessage, setCurrentFutureSelfMessage] = useState(null);
+
+  // SMART BREAK REMINDERS - Prevent burnout with timed breaks
+  const [breakReminderEnabled, setBreakReminderEnabled] = useState(true);
+  const [lastBreakTime, setLastBreakTime] = useState(null);
+  const [totalFocusMinutes, setTotalFocusMinutes] = useState(0); // Cumulative focus time since last break
+  const [showBreakReminder, setShowBreakReminder] = useState(false);
+  const [suggestedBreakActivity, setSuggestedBreakActivity] = useState(null);
+  const [breaksTaken, setBreaksTaken] = useState(0); // Track breaks for stats
+
+  // PROCRASTINATION BUSTER - Detect and help with stuck tasks
+  const [taskAttempts, setTaskAttempts] = useState({}); // {taskId: {attempts: number, lastAttempt: Date, skips: number}}
+  const [showProcrastinationHelp, setShowProcrastinationHelp] = useState(false);
+  const [procrastinatedTask, setProcrastinatedTask] = useState(null);
+  const [procrastinationReasons, setProcrastinationReasons] = useState([]); // Common reasons this user procrastinates
+
+  // QUICK WIN STREAKS - Visual streak tracking for momentum
+  const [quickWinStreak, setQuickWinStreak] = useState(0); // Current streak of completed tasks
+  const [bestQuickWinStreak, setBestQuickWinStreak] = useState(0); // All-time best
+  const [streakMilestones, setStreakMilestones] = useState([]); // [{streak, timestamp, tasks}]
+  const [showStreakCelebration, setShowStreakCelebration] = useState(false);
+  const [streakReward, setStreakReward] = useState(null); // Special reward for hitting milestone
+
+  // FOCUS RITUAL BUILDER - Pre-focus routine for task initiation
+  const [focusRitualEnabled, setFocusRitualEnabled] = useState(true);
+  const [focusRitualSteps, setFocusRitualSteps] = useState([
+    { id: 1, text: 'Take 3 deep breaths', emoji: '🌬️', completed: false },
+    { id: 2, text: 'Clear your workspace', emoji: '🧹', completed: false },
+    { id: 3, text: 'Put phone on silent', emoji: '📱', completed: false },
+    { id: 4, text: 'Set your intention', emoji: '🎯', completed: false }
+  ]);
+  const [showFocusRitual, setShowFocusRitual] = useState(false);
+  const [ritualTaskPending, setRitualTaskPending] = useState(null); // Task to start after ritual
+  const [ritualMinutesPending, setRitualMinutesPending] = useState(null);
+  const [showRitualEditor, setShowRitualEditor] = useState(false);
 
   const [userId, setUserId] = useState(null);
   
@@ -1449,6 +1612,43 @@ export default function Frog() {
           setFutureSelfMessages(savedFutureSelfMessages);
         }
 
+        // SMART BREAK: Load break settings
+        const savedBreaksTaken = Storage.get('breaksTakenToday', 0);
+        const breakDate = Storage.get('breakDate', null);
+        const todayStr = new Date().toDateString();
+        if (breakDate === todayStr) {
+          setBreaksTaken(savedBreaksTaken);
+        } else {
+          Storage.set('breakDate', todayStr);
+          Storage.set('breaksTakenToday', 0);
+        }
+
+        // PROCRASTINATION: Load task attempts
+        const savedTaskAttempts = Storage.get('taskAttempts', {});
+        if (Object.keys(savedTaskAttempts).length > 0) {
+          setTaskAttempts(savedTaskAttempts);
+        }
+        const savedProcrastinationReasons = Storage.get('procrastinationReasons', []);
+        if (savedProcrastinationReasons.length > 0) {
+          setProcrastinationReasons(savedProcrastinationReasons);
+        }
+
+        // QUICK WIN STREAKS: Load streak data
+        const savedQuickWinStreak = Storage.get('quickWinStreak', 0);
+        const savedBestStreak = Storage.get('bestQuickWinStreak', 0);
+        const savedMilestones = Storage.get('streakMilestones', []);
+        setQuickWinStreak(savedQuickWinStreak);
+        setBestQuickWinStreak(savedBestStreak);
+        setStreakMilestones(savedMilestones);
+
+        // FOCUS RITUAL: Load custom ritual steps
+        const savedRitualSteps = Storage.get('focusRitualSteps', null);
+        if (savedRitualSteps && savedRitualSteps.length > 0) {
+          setFocusRitualSteps(savedRitualSteps);
+        }
+        const savedRitualEnabled = Storage.get('focusRitualEnabled', true);
+        setFocusRitualEnabled(savedRitualEnabled);
+
         // Check for rollover tasks (from previous days)
         checkRolloverTasks();
         
@@ -1760,8 +1960,26 @@ export default function Frog() {
     Storage.set('taskInProgress', task);
     Storage.set('lastActiveTime', Date.now());
 
-    // Start normal focus
-    startFocus(task, minutes);
+    // PROCRASTINATION BUSTER: Track this attempt (inline to avoid circular dependency)
+    setTaskAttempts(prev => {
+      const current = prev[task.id] || { attempts: 0, skips: 0, lastAttempt: null };
+      const updated = { ...current, attempts: current.attempts + 1, lastAttempt: new Date().toISOString() };
+      const newAttempts = { ...prev, [task.id]: updated };
+      Storage.set('taskAttempts', newAttempts);
+      return newAttempts;
+    });
+
+    // FOCUS RITUAL: Start ritual if enabled, otherwise start focus directly
+    if (focusRitualEnabled && minutes >= 5) { // Only show ritual for 5+ minute sessions
+      // Reset ritual steps and show modal
+      setFocusRitualSteps(prev => prev.map(step => ({ ...step, completed: false })));
+      setRitualTaskPending(task);
+      setRitualMinutesPending(minutes);
+      setShowFocusRitual(true);
+      Haptics.light();
+    } else {
+      startFocus(task, minutes);
+    }
   };
 
   // Check for distraction recovery on visibility change
@@ -2217,6 +2435,45 @@ export default function Frog() {
     // TASK DNA: Record completion for pattern learning
     recordTaskDNA(task, true, actualMinutes);
 
+    // QUICK WIN STREAKS: Update streak on completion (inline to avoid circular dependency)
+    setQuickWinStreak(prevStreak => {
+      const newStreak = prevStreak + 1;
+      Storage.set('quickWinStreak', newStreak);
+      // Check for milestone celebration
+      const milestone = STREAK_MILESTONES.find(m => m.streak === newStreak);
+      if (milestone) {
+        setStreakReward(milestone);
+        setShowStreakCelebration(true);
+        Haptics.success();
+      }
+      if (newStreak > bestQuickWinStreak) {
+        setBestQuickWinStreak(newStreak);
+        Storage.set('bestQuickWinStreak', newStreak);
+      }
+      return newStreak;
+    });
+
+    // SMART BREAK: Check if break is needed after focus (inline)
+    if (actualMinutes > 0 && breakReminderEnabled) {
+      setTotalFocusMinutes(prev => {
+        const newTotal = prev + actualMinutes;
+        if (newTotal >= BREAK_THRESHOLD_MINUTES) {
+          const activity = getBreakSuggestion(energy, breaksTaken);
+          setSuggestedBreakActivity(activity);
+          setShowBreakReminder(true);
+        }
+        return newTotal;
+      });
+    }
+
+    // PROCRASTINATION BUSTER: Clear procrastination data for completed task (inline)
+    setTaskAttempts(prev => {
+      const updated = { ...prev };
+      delete updated[task.id];
+      Storage.set('taskAttempts', updated);
+      return updated;
+    });
+
     // FUTURE SELF: Prompt for message after completing (especially for frogs or hard tasks)
     if (task.frog || task.difficulty >= 4) {
       // Show prompt after transition screen
@@ -2231,7 +2488,7 @@ export default function Frog() {
 
     Storage.set('xp', newXP);
     Storage.set('level', Math.floor(newXP / 100) + 1);
-  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive, sensoryPreferences, accountabilityPartner, emergencyMode, momentumStreak, showTransition, recordTaskDNA, stopAmbientSound]);
+  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive, sensoryPreferences, accountabilityPartner, emergencyMode, momentumStreak, showTransition, recordTaskDNA, stopAmbientSound, bestQuickWinStreak, breakReminderEnabled, breaksTaken]);
 
   // TRANSITION MOMENTUM: Find the best next task to suggest
   const findNextSuggestedTask = useCallback((remainingTasks, currentEnergy, completedTask) => {
@@ -2701,6 +2958,221 @@ export default function Frog() {
       Haptics.light();
     }
   }, [futureSelfMessages, energy]);
+
+  // SMART BREAK REMINDERS: Check if break is needed
+  const checkBreakNeeded = useCallback((additionalMinutes = 0) => {
+    if (!breakReminderEnabled) return;
+
+    const newTotal = totalFocusMinutes + additionalMinutes;
+    setTotalFocusMinutes(newTotal);
+
+    if (newTotal >= BREAK_THRESHOLD_MINUTES && !showBreakReminder) {
+      const activity = getBreakSuggestion(energy, breaksTaken);
+      setSuggestedBreakActivity(activity);
+      setShowBreakReminder(true);
+      Haptics.light();
+    }
+  }, [breakReminderEnabled, totalFocusMinutes, showBreakReminder, energy, breaksTaken]);
+
+  // SMART BREAK REMINDERS: Take a break
+  const takeBreak = useCallback(() => {
+    setShowBreakReminder(false);
+    setTotalFocusMinutes(0);
+    setLastBreakTime(Date.now());
+    setBreaksTaken(prev => prev + 1);
+    Haptics.success();
+
+    // Save break stats
+    const today = new Date().toISOString().split('T')[0];
+    const breakStats = Storage.get('breakStats', {});
+    breakStats[today] = (breakStats[today] || 0) + 1;
+    Storage.set('breakStats', breakStats);
+  }, []);
+
+  // SMART BREAK REMINDERS: Skip break
+  const skipBreak = useCallback(() => {
+    setShowBreakReminder(false);
+    // Reset counter but give a grace period (add 25 more minutes before next reminder)
+    setTotalFocusMinutes(BREAK_THRESHOLD_MINUTES - 25);
+  }, []);
+
+  // PROCRASTINATION BUSTER: Track task attempt
+  const trackTaskAttempt = useCallback((taskId, action = 'attempt') => {
+    setTaskAttempts(prev => {
+      const current = prev[taskId] || { attempts: 0, skips: 0, lastAttempt: null };
+      const updated = {
+        ...current,
+        attempts: action === 'attempt' ? current.attempts + 1 : current.attempts,
+        skips: action === 'skip' ? current.skips + 1 : current.skips,
+        lastAttempt: new Date().toISOString()
+      };
+
+      const newAttempts = { ...prev, [taskId]: updated };
+      Storage.set('taskAttempts', newAttempts);
+
+      // Check if task is now procrastinated
+      if (isProcrastinated(newAttempts, taskId) && !showProcrastinationHelp) {
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+          setProcrastinatedTask(task);
+          setShowProcrastinationHelp(true);
+        }
+      }
+
+      return newAttempts;
+    });
+  }, [tasks, showProcrastinationHelp]);
+
+  // PROCRASTINATION BUSTER: Handle procrastination reason selection
+  const handleProcrastinationReason = useCallback((reasonId) => {
+    // Track reason for insights
+    setProcrastinationReasons(prev => {
+      const updated = [...prev, { reason: reasonId, timestamp: new Date().toISOString(), taskId: procrastinatedTask?.id }];
+      Storage.set('procrastinationReasons', updated.slice(-50)); // Keep last 50
+      return updated;
+    });
+
+    // Get help based on reason
+    const reason = PROCRASTINATION_REASONS.find(r => r.id === reasonId);
+    const help = getProcrastinationHelp(reason?.help || 'talk');
+
+    // Take action based on help type
+    if (help.action === 'chunk' && procrastinatedTask) {
+      setShowProcrastinationHelp(false);
+      setTaskToChunk(procrastinatedTask);
+      setShowChunkModal(true);
+    } else if (help.action === 'sprint' && procrastinatedTask) {
+      setShowProcrastinationHelp(false);
+      startFocus(procrastinatedTask, 5); // 5-minute sprint
+    } else if (help.action === 'buddy') {
+      setShowProcrastinationHelp(false);
+      setShowFocusBuddy(true);
+    } else {
+      // Just show encouragement and close
+      Haptics.success();
+      setShowProcrastinationHelp(false);
+    }
+  }, [procrastinatedTask]);
+
+  // PROCRASTINATION BUSTER: Clear procrastination data for task
+  const clearProcrastination = useCallback((taskId) => {
+    setTaskAttempts(prev => {
+      const updated = { ...prev };
+      delete updated[taskId];
+      Storage.set('taskAttempts', updated);
+      return updated;
+    });
+  }, []);
+
+  // QUICK WIN STREAKS: Update streak on task completion
+  const updateQuickWinStreak = useCallback((increment = true) => {
+    if (increment) {
+      setQuickWinStreak(prev => {
+        const newStreak = prev + 1;
+        Storage.set('quickWinStreak', newStreak);
+
+        // Check for milestone
+        const milestone = getStreakMilestone(newStreak);
+        const prevMilestone = getStreakMilestone(prev);
+
+        // Update best streak
+        if (newStreak > bestQuickWinStreak) {
+          setBestQuickWinStreak(newStreak);
+          Storage.set('bestQuickWinStreak', newStreak);
+        }
+
+        // Celebrate if hit new milestone
+        if (milestone && (!prevMilestone || milestone.streak > prevMilestone.streak)) {
+          setStreakReward(milestone);
+          setShowStreakCelebration(true);
+          Haptics.success();
+
+          // Record milestone
+          setStreakMilestones(prev => {
+            const updated = [...prev, { ...milestone, timestamp: new Date().toISOString() }];
+            Storage.set('streakMilestones', updated);
+            return updated;
+          });
+        }
+
+        return newStreak;
+      });
+    } else {
+      // Reset streak (on skip or abandon)
+      setQuickWinStreak(0);
+      Storage.set('quickWinStreak', 0);
+    }
+  }, [bestQuickWinStreak]);
+
+  // FOCUS RITUAL: Start ritual before focus
+  const startFocusRitual = useCallback((task, minutes) => {
+    if (!focusRitualEnabled) {
+      // Skip ritual, go straight to focus
+      startFocus(task, minutes);
+      return;
+    }
+
+    // Reset ritual steps
+    setFocusRitualSteps(prev => prev.map(step => ({ ...step, completed: false })));
+    setRitualTaskPending(task);
+    setRitualMinutesPending(minutes);
+    setShowFocusRitual(true);
+    Haptics.light();
+  }, [focusRitualEnabled]);
+
+  // FOCUS RITUAL: Complete a ritual step
+  const completeRitualStep = useCallback((stepId) => {
+    setFocusRitualSteps(prev => {
+      const updated = prev.map(step =>
+        step.id === stepId ? { ...step, completed: !step.completed } : step
+      );
+
+      // Check if all completed
+      const allCompleted = updated.every(s => s.completed);
+      if (allCompleted && ritualTaskPending) {
+        // Auto-start focus after short delay
+        setTimeout(() => {
+          setShowFocusRitual(false);
+          startFocus(ritualTaskPending, ritualMinutesPending);
+          setRitualTaskPending(null);
+          setRitualMinutesPending(null);
+          Haptics.success();
+        }, 500);
+      }
+
+      return updated;
+    });
+    Haptics.light();
+  }, [ritualTaskPending, ritualMinutesPending]);
+
+  // FOCUS RITUAL: Skip ritual and start immediately
+  const skipRitual = useCallback(() => {
+    setShowFocusRitual(false);
+    if (ritualTaskPending) {
+      startFocus(ritualTaskPending, ritualMinutesPending);
+    }
+    setRitualTaskPending(null);
+    setRitualMinutesPending(null);
+  }, [ritualTaskPending, ritualMinutesPending]);
+
+  // FOCUS RITUAL: Add custom step
+  const addRitualStep = useCallback((text, emoji = '✨') => {
+    setFocusRitualSteps(prev => {
+      const newId = Math.max(...prev.map(s => s.id)) + 1;
+      const updated = [...prev, { id: newId, text, emoji, completed: false }];
+      Storage.set('focusRitualSteps', updated);
+      return updated;
+    });
+  }, []);
+
+  // FOCUS RITUAL: Remove custom step
+  const removeRitualStep = useCallback((stepId) => {
+    setFocusRitualSteps(prev => {
+      const updated = prev.filter(s => s.id !== stepId);
+      Storage.set('focusRitualSteps', updated);
+      return updated;
+    });
+  }, []);
 
   // Delete a task
   const handleDeleteTask = useCallback((taskId) => {
@@ -3611,10 +4083,17 @@ export default function Frog() {
                 </div>
               </button>
 
-              {/* Right: Level + XP only */}
-              <div className="glass-card px-4 py-2">
-                <p className="text-white font-bold">Lv.{level}</p>
-                <p className="text-green-400 text-xs text-right">{xp} XP</p>
+              {/* Right: Level + XP + Streak */}
+              <div className="flex items-center gap-2">
+                {quickWinStreak >= 2 && (
+                  <div className="glass-card px-3 py-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-yellow-500/30">
+                    <p className="text-yellow-400 font-bold text-sm">🔥 {quickWinStreak}</p>
+                  </div>
+                )}
+                <div className="glass-card px-4 py-2">
+                  <p className="text-white font-bold">Lv.{level}</p>
+                  <p className="text-green-400 text-xs text-right">{xp} XP</p>
+                </div>
               </div>
             </div>
           </div>
@@ -4430,6 +4909,84 @@ export default function Frog() {
                       </button>
                     </div>
 
+                    {/* Smart Break Reminders */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">☕</span>
+                        <div>
+                          <p className="text-white font-medium">Smart Break Reminders</p>
+                          <p className="text-white/40 text-xs">
+                            Reminds you to take breaks after {BREAK_THRESHOLD_MINUTES} mins focus
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setBreakReminderEnabled(prev => !prev);
+                          Storage.set('breakReminderEnabled', !breakReminderEnabled);
+                        }}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          breakReminderEnabled ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          breakReminderEnabled ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Focus Ritual */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🎯</span>
+                        <div>
+                          <p className="text-white font-medium">Focus Ritual</p>
+                          <p className="text-white/40 text-xs">
+                            Pre-focus checklist to help you get started
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setFocusRitualEnabled(prev => !prev);
+                          Storage.set('focusRitualEnabled', !focusRitualEnabled);
+                        }}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          focusRitualEnabled ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          focusRitualEnabled ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Quick Win Streak Stats */}
+                    <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-yellow-300 text-xs font-medium">🔥 Quick Win Streak</p>
+                        <span className="text-yellow-400 font-bold">{quickWinStreak} tasks</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-white/50">Best streak: {bestQuickWinStreak}</span>
+                        {getStreakMilestone(quickWinStreak) && (
+                          <span className="text-yellow-300">
+                            {getStreakMilestone(quickWinStreak).emoji} {getStreakMilestone(quickWinStreak).title}
+                          </span>
+                        )}
+                      </div>
+                      {getNextMilestone(quickWinStreak) && (
+                        <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all"
+                            style={{
+                              width: `${((quickWinStreak % (getNextMilestone(quickWinStreak)?.streak || 5)) / (getNextMilestone(quickWinStreak)?.streak || 5)) * 100}%`
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
                     {/* Distraction Patterns Summary */}
                     {Object.keys(distractionPatterns).length > 0 && (
                       <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
@@ -4445,7 +5002,7 @@ export default function Frog() {
                     {/* Quick explanation */}
                     <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
                       <p className="text-purple-300 text-xs">
-                        <strong>Task DNA 🧬</strong> learns when you succeed. <strong>Future Self 💌</strong> saves encouragement for bad days. <strong>Energy Sorting ⚡</strong> shows right tasks for your energy.
+                        <strong>Focus Ritual 🎯</strong> helps you start. <strong>Break Reminders ☕</strong> prevent burnout. <strong>Win Streaks 🔥</strong> build momentum. <strong>Task DNA 🧬</strong> learns your patterns.
                       </p>
                     </div>
                   </div>
@@ -5955,6 +6512,186 @@ export default function Frog() {
                 >
                   Thanks, past me! 💙
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SMART BREAK REMINDER: Take a break modal */}
+        {showBreakReminder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={skipBreak} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center">
+                <div className="text-5xl mb-4">☕</div>
+                <h2 className="text-xl font-bold text-white mb-2">Time for a Break!</h2>
+                <p className="text-white/60 text-sm mb-4">
+                  You've been focusing for {totalFocusMinutes} minutes. Your brain needs a refresh!
+                </p>
+
+                {suggestedBreakActivity && (
+                  <div className="glass-card bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl mb-4">
+                    <span className="text-3xl mb-2 block">{suggestedBreakActivity.emoji}</span>
+                    <p className="text-white font-medium">{suggestedBreakActivity.text}</p>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <button
+                    onClick={takeBreak}
+                    className="w-full glass-button py-3 rounded-xl text-green-400 font-medium bg-green-500/10 border border-green-500/20"
+                  >
+                    Take 5-minute break 🌟
+                  </button>
+                  <button
+                    onClick={skipBreak}
+                    className="w-full glass-button py-2 rounded-xl text-white/50 text-sm"
+                  >
+                    I'm in the zone, remind me later
+                  </button>
+                </div>
+
+                <p className="text-white/30 text-xs mt-4">
+                  Breaks taken today: {breaksTaken} 🏆
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PROCRASTINATION BUSTER: Help modal */}
+        {showProcrastinationHelp && procrastinatedTask && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowProcrastinationHelp(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6">
+                <div className="text-center mb-4">
+                  <div className="text-5xl mb-2">🤔</div>
+                  <h2 className="text-xl font-bold text-white">This task keeps coming back</h2>
+                  <p className="text-white/60 text-sm mt-2">
+                    "{procrastinatedTask.title}" - What's making it hard?
+                  </p>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  {PROCRASTINATION_REASONS.map(reason => (
+                    <button
+                      key={reason.id}
+                      onClick={() => handleProcrastinationReason(reason.id)}
+                      className="w-full glass-card p-3 flex items-center gap-3 hover:bg-white/10 transition-colors text-left"
+                    >
+                      <span className="text-xl">{reason.emoji}</span>
+                      <span className="text-white/80">{reason.text}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setShowProcrastinationHelp(false)}
+                  className="w-full text-white/40 text-sm py-2"
+                >
+                  I'll figure it out myself
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* QUICK WIN STREAK: Celebration modal */}
+        {showStreakCelebration && streakReward && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowStreakCelebration(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-bounce-in">
+              <div className="glass-card p-6 text-center overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/20 to-orange-500/20" />
+                <div className="relative">
+                  <div className="text-6xl mb-4 animate-bounce">{streakReward.emoji}</div>
+                  <h2 className="text-2xl font-bold text-white mb-2">{streakReward.title}</h2>
+                  <p className="text-yellow-400 font-medium mb-2">
+                    {quickWinStreak} task streak! 🔥
+                  </p>
+                  <p className="text-white/60 text-sm mb-4">
+                    You unlocked: {streakReward.reward}
+                  </p>
+
+                  {getNextMilestone(quickWinStreak) && (
+                    <div className="glass-card bg-white/5 p-3 rounded-xl mb-4">
+                      <p className="text-white/50 text-xs">Next milestone:</p>
+                      <p className="text-white/80">
+                        {getNextMilestone(quickWinStreak).streak} tasks → {getNextMilestone(quickWinStreak).emoji} {getNextMilestone(quickWinStreak).title}
+                      </p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setShowStreakCelebration(false)}
+                    className="w-full glass-button py-3 rounded-xl text-white font-medium bg-gradient-to-r from-yellow-500/30 to-orange-500/30"
+                  >
+                    Keep the momentum! 🚀
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FOCUS RITUAL: Pre-focus checklist modal */}
+        {showFocusRitual && ritualTaskPending && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6">
+                <div className="text-center mb-4">
+                  <div className="text-4xl mb-2">🎯</div>
+                  <h2 className="text-xl font-bold text-white">Pre-Focus Ritual</h2>
+                  <p className="text-white/60 text-sm mt-1">
+                    Quick prep for "{ritualTaskPending.title}"
+                  </p>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  {focusRitualSteps.map(step => (
+                    <button
+                      key={step.id}
+                      onClick={() => completeRitualStep(step.id)}
+                      className={`w-full glass-card p-3 flex items-center gap-3 transition-all text-left ${
+                        step.completed
+                          ? 'bg-green-500/20 border-green-500/30'
+                          : 'hover:bg-white/10'
+                      }`}
+                    >
+                      <span className="text-xl">{step.completed ? '✅' : step.emoji}</span>
+                      <span className={step.completed ? 'text-green-400 line-through' : 'text-white/80'}>
+                        {step.text}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={skipRitual}
+                    className="flex-1 glass-button py-2 rounded-xl text-white/50 text-sm"
+                  >
+                    Skip ritual
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowFocusRitual(false);
+                      startFocus(ritualTaskPending, ritualMinutesPending);
+                      setRitualTaskPending(null);
+                      setRitualMinutesPending(null);
+                    }}
+                    disabled={!focusRitualSteps.every(s => s.completed)}
+                    className="flex-1 glass-button py-2 rounded-xl text-green-400 font-medium bg-green-500/10 disabled:opacity-40"
+                  >
+                    Start Focus 🚀
+                  </button>
+                </div>
+
+                <p className="text-white/30 text-xs text-center mt-3">
+                  Complete all steps or skip to begin
+                </p>
               </div>
             </div>
           </div>
