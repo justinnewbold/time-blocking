@@ -90,7 +90,7 @@ export default function AppleWatchCompanion({ onClose }) {
   const [activeTab, setActiveTab] = useState('features');
   const [selectedFeature, setSelectedFeature] = useState(null);
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://frog.newbold.cloud';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || '');
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
