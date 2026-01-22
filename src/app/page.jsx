@@ -1177,6 +1177,100 @@ const INTENTION_PROMPTS = [
   "What would give you the biggest sense of relief?"
 ];
 
+// ENERGY BORROWING: Tomorrow Me system
+const ENERGY_DEBT_MESSAGES = {
+  borrowed: [
+    "You borrowed some energy from tomorrow. It's okay to rest later.",
+    "Energy loan activated! Tomorrow-you understands.",
+    "Pushing through today - be gentle with yourself tomorrow.",
+    "Running on borrowed time. You've got this!"
+  ],
+  payback: [
+    "You borrowed energy yesterday. Take it easy today - you've earned it.",
+    "Debt from yesterday: Be extra kind to yourself today.",
+    "Energy payback day - lighter tasks are totally valid.",
+    "Yesterday you pushed hard. Today, go gentle."
+  ]
+};
+
+// CONTEXT BUNDLES: Pre-defined contexts for task grouping
+const CONTEXT_BUNDLES = [
+  { id: 'desk', label: 'At My Desk', emoji: '🖥️', description: 'Computer + full setup', tags: ['computer', 'desk', 'work', 'focused'] },
+  { id: 'mobile', label: 'Phone Only', emoji: '📱', description: 'Quick mobile tasks', tags: ['phone', 'mobile', 'quick', 'anywhere'] },
+  { id: 'errand', label: 'Out & About', emoji: '🚗', description: 'Errands and outside tasks', tags: ['errand', 'outside', 'car', 'store'] },
+  { id: 'home', label: 'At Home', emoji: '🏠', description: 'Home-based tasks', tags: ['home', 'house', 'chores', 'personal'] },
+  { id: 'lowkey', label: 'Low Energy', emoji: '🛋️', description: 'Couch-friendly tasks', tags: ['easy', 'rest', 'simple', 'passive'] },
+  { id: 'social', label: 'With People', emoji: '👥', description: 'Tasks involving others', tags: ['social', 'meeting', 'call', 'people'] }
+];
+
+// COMPLETION PROPHECY: Predicted feelings after task completion
+const COMPLETION_FEELINGS = {
+  work: {
+    high: ['accomplished and proud', 'like a weight lifted off your shoulders', 'ready to tackle more', 'relieved and energized'],
+    medium: ['satisfied with your progress', 'good about checking it off', 'more in control', 'accomplished'],
+    low: ['glad it is done', 'relieved', 'ready to move on', 'like you made progress']
+  },
+  personal: {
+    high: ['proud of yourself', 'happier and lighter', 'more in control of your life', 'genuinely good'],
+    medium: ['content', 'glad you did it', 'more organized', 'satisfied'],
+    low: ['fine about it', 'okay', 'like you took care of something', 'decent']
+  },
+  health: {
+    high: ['energized and alive', 'proud of taking care of yourself', 'strong and capable', 'amazing'],
+    medium: ['healthier', 'good about your choices', 'like you did right by your body', 'refreshed'],
+    low: ['okay', 'slightly better', 'glad you moved', 'fine']
+  },
+  creative: {
+    high: ['inspired and fulfilled', 'creatively satisfied', 'like you expressed something important', 'artistically alive'],
+    medium: ['good about creating', 'satisfied with your output', 'more balanced', 'creative'],
+    low: ['like you did something', 'okay about it', 'slightly more creative', 'fine']
+  }
+};
+
+const getProphecy = (task, completionHistory, currentEnergy) => {
+  // Determine base category (map task categories to feeling categories)
+  const categoryMap = {
+    work: 'work',
+    personal: 'personal',
+    health: 'health',
+    creative: 'creative',
+    errands: 'personal',
+    learning: 'work',
+    social: 'personal'
+  };
+  const feelingCategory = categoryMap[task.category] || 'personal';
+
+  // Determine intensity based on difficulty and energy
+  let intensity = 'medium';
+  if (task.difficulty >= 4 || task.frog) {
+    intensity = 'high';
+  } else if (task.difficulty <= 2 || currentEnergy <= 2) {
+    intensity = 'low';
+  }
+
+  // Check completion history for similar tasks
+  const similarCompletions = completionHistory.filter(c =>
+    c.category === task.category && Math.abs(c.difficulty - task.difficulty) <= 1
+  );
+
+  // Build prophecy message
+  const feelings = COMPLETION_FEELINGS[feelingCategory]?.[intensity] || COMPLETION_FEELINGS.personal.medium;
+  const feeling = feelings[Math.floor(Math.random() * feelings.length)];
+
+  // Add historical context if available
+  let historicalNote = '';
+  if (similarCompletions.length >= 2) {
+    historicalNote = ` (Based on ${similarCompletions.length} similar completions)`;
+  }
+
+  return {
+    feeling,
+    historicalNote,
+    intensity,
+    confidence: similarCompletions.length >= 3 ? 'high' : similarCompletions.length >= 1 ? 'medium' : 'low'
+  };
+};
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -1459,6 +1553,25 @@ export default function Frog() {
   const [microWinType, setMicroWinType] = useState(null); // 'start', 'subtask', 'milestone', 'halfway'
   const [microWinMessage, setMicroWinMessage] = useState('');
   const [focusMilestones, setFocusMilestones] = useState([]); // Track which milestones hit this session
+
+  // ENERGY BORROWING / TOMORROW ME - Trade energy across days
+  const [energyDebt, setEnergyDebt] = useState(0); // Positive = borrowed, negative = surplus
+  const [lastDebtDate, setLastDebtDate] = useState(null); // When energy was last borrowed
+  const [showEnergyBorrow, setShowEnergyBorrow] = useState(false);
+  const [showDebtReminder, setShowDebtReminder] = useState(false);
+  const [debtMessage, setDebtMessage] = useState('');
+
+  // CONTEXT BUNDLES - Group tasks by current context
+  const [activeContext, setActiveContext] = useState(null); // Current context filter
+  const [taskContexts, setTaskContexts] = useState({}); // {taskId: contextId}
+  const [showContextPicker, setShowContextPicker] = useState(false);
+  const [contextPickerTask, setContextPickerTask] = useState(null);
+
+  // COMPLETION PROPHECY - Predict how you'll feel after completing
+  const [showProphecy, setShowProphecy] = useState(false);
+  const [currentProphecy, setCurrentProphecy] = useState(null);
+  const [prophecyTask, setProphecyTask] = useState(null);
+  const [completionHistory, setCompletionHistory] = useState([]); // For prophecy accuracy
 
   const [userId, setUserId] = useState(null);
   
@@ -1885,6 +1998,42 @@ export default function Frog() {
         // MICRO-WINS: Load settings
         const savedMicroWinEnabled = Storage.get('microWinEnabled', true);
         setMicroWinEnabled(savedMicroWinEnabled);
+
+        // ENERGY BORROWING: Load debt and check for payback day
+        const savedEnergyDebt = Storage.get('energyDebt', 0);
+        const savedDebtDate = Storage.get('lastDebtDate', null);
+        setEnergyDebt(savedEnergyDebt);
+        setLastDebtDate(savedDebtDate);
+
+        // Check if we borrowed energy yesterday - show reminder
+        if (savedEnergyDebt > 0 && savedDebtDate) {
+          const debtDay = new Date(savedDebtDate).toDateString();
+          const today = new Date().toDateString();
+          const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+          if (debtDay === yesterday) {
+            // Borrowed yesterday - show gentle reminder
+            const messages = ENERGY_DEBT_MESSAGES.payback;
+            setDebtMessage(messages[Math.floor(Math.random() * messages.length)]);
+            setShowDebtReminder(true);
+          } else if (debtDay !== today) {
+            // Old debt, clear it
+            setEnergyDebt(0);
+            Storage.set('energyDebt', 0);
+          }
+        }
+
+        // CONTEXT BUNDLES: Load task contexts
+        const savedTaskContexts = Storage.get('taskContexts', {});
+        if (Object.keys(savedTaskContexts).length > 0) {
+          setTaskContexts(savedTaskContexts);
+        }
+
+        // COMPLETION PROPHECY: Load completion history for predictions
+        const savedCompletionHistory = Storage.get('completionHistory', []);
+        if (savedCompletionHistory.length > 0) {
+          setCompletionHistory(savedCompletionHistory);
+        }
 
         // Check for rollover tasks (from previous days)
         checkRolloverTasks();
@@ -2815,6 +2964,22 @@ export default function Frog() {
       Haptics.success();
     }
 
+    // COMPLETION PROPHECY: Record this completion for future predictions (inline)
+    setCompletionHistory(prev => {
+      const entry = {
+        id: Date.now(),
+        taskId: task.id,
+        category: task.category,
+        difficulty: task.difficulty || 2,
+        frog: task.frog || false,
+        completedAt: new Date().toISOString(),
+        energy: energy || 3
+      };
+      const updated = [...prev, entry].slice(-100);
+      Storage.set('completionHistory', updated);
+      return updated;
+    });
+
     // FUTURE SELF: Prompt for message after completing (especially for frogs or hard tasks)
     if (task.frog || task.difficulty >= 4) {
       // Show prompt after transition screen
@@ -3714,6 +3879,103 @@ export default function Frog() {
     setFocusMilestones([]);
   }, []);
 
+  // ENERGY BORROWING: Borrow energy from tomorrow
+  const borrowEnergy = useCallback((amount = 1) => {
+    const newDebt = energyDebt + amount;
+    setEnergyDebt(newDebt);
+    setLastDebtDate(new Date().toISOString());
+    Storage.set('energyDebt', newDebt);
+    Storage.set('lastDebtDate', new Date().toISOString());
+
+    // Show confirmation message
+    const messages = ENERGY_DEBT_MESSAGES.borrowed;
+    setDebtMessage(messages[Math.floor(Math.random() * messages.length)]);
+    setShowEnergyBorrow(false);
+
+    Haptics.success();
+  }, [energyDebt]);
+
+  // ENERGY BORROWING: Pay back energy debt
+  const payBackEnergy = useCallback(() => {
+    setEnergyDebt(0);
+    setLastDebtDate(null);
+    Storage.set('energyDebt', 0);
+    Storage.set('lastDebtDate', null);
+    setShowDebtReminder(false);
+    Haptics.light();
+  }, []);
+
+  // ENERGY BORROWING: Acknowledge debt reminder
+  const acknowledgeDebt = useCallback(() => {
+    setShowDebtReminder(false);
+    Haptics.light();
+  }, []);
+
+  // CONTEXT BUNDLES: Set context for a task
+  const setTaskContext = useCallback((taskId, contextId) => {
+    setTaskContexts(prev => {
+      const updated = { ...prev, [taskId]: contextId };
+      Storage.set('taskContexts', updated);
+      return updated;
+    });
+    setShowContextPicker(false);
+    setContextPickerTask(null);
+    Haptics.light();
+  }, []);
+
+  // CONTEXT BUNDLES: Clear context for a task
+  const clearTaskContext = useCallback((taskId) => {
+    setTaskContexts(prev => {
+      const updated = { ...prev };
+      delete updated[taskId];
+      Storage.set('taskContexts', updated);
+      return updated;
+    });
+    Haptics.light();
+  }, []);
+
+  // CONTEXT BUNDLES: Filter tasks by active context
+  const getContextFilteredTasks = useCallback((taskList) => {
+    if (!activeContext) return taskList;
+    return taskList.filter(task => taskContexts[task.id] === activeContext);
+  }, [activeContext, taskContexts]);
+
+  // CONTEXT BUNDLES: Open context picker for a task
+  const openContextPicker = useCallback((task) => {
+    setContextPickerTask(task);
+    setShowContextPicker(true);
+    Haptics.light();
+  }, []);
+
+  // COMPLETION PROPHECY: Get and show prophecy for a task
+  const showTaskProphecy = useCallback((task) => {
+    const prophecy = getProphecy(task, completionHistory, energy);
+    setCurrentProphecy(prophecy);
+    setProphecyTask(task);
+    setShowProphecy(true);
+    Haptics.light();
+  }, [completionHistory, energy]);
+
+  // COMPLETION PROPHECY: Record completion for future predictions
+  const recordCompletion = useCallback((task, actualFeeling = null) => {
+    const entry = {
+      id: Date.now(),
+      taskId: task.id,
+      category: task.category,
+      difficulty: task.difficulty || 2,
+      frog: task.frog || false,
+      completedAt: new Date().toISOString(),
+      energy: energy || 3,
+      actualFeeling
+    };
+
+    setCompletionHistory(prev => {
+      const updated = [...prev, entry].slice(-100); // Keep last 100
+      Storage.set('completionHistory', updated);
+      return updated;
+    });
+  }, [energy]);
+
   // Delete a task
   const handleDeleteTask = useCallback((taskId) => {
     Haptics.impact('heavy');
@@ -4018,9 +4280,14 @@ export default function Frog() {
   };
 
   // Apply category filter
-  let filteredTasks = selectedCategory === 'all' 
+  let filteredTasks = selectedCategory === 'all'
     ? tasks
     : tasks.filter(t => t.category === selectedCategory);
+
+  // CONTEXT BUNDLES: Apply context filter if active
+  if (activeContext) {
+    filteredTasks = filteredTasks.filter(t => taskContexts[t.id] === activeContext);
+  }
 
   // ADHD: One Thing Mode - only show the frog task (radical simplicity)
   // When enabled, hides all other tasks to reduce overwhelm
@@ -4751,6 +5018,41 @@ export default function Frog() {
           />
         </div>
 
+        {/* CONTEXT BUNDLES: Context filter bar */}
+        <div className="px-4 mt-4">
+          <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-2">
+            <button
+              onClick={() => { Haptics.light(); setActiveContext(null); }}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm transition-all ${
+                !activeContext
+                  ? 'bg-white/20 text-white'
+                  : 'bg-white/5 text-white/50'
+              }`}
+            >
+              All Tasks
+            </button>
+            {CONTEXT_BUNDLES.map(context => {
+              const count = tasks.filter(t => taskContexts[t.id] === context.id).length;
+              if (count === 0) return null;
+              return (
+                <button
+                  key={context.id}
+                  onClick={() => { Haptics.light(); setActiveContext(activeContext === context.id ? null : context.id); }}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm flex items-center gap-1.5 transition-all ${
+                    activeContext === context.id
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                      : 'bg-white/5 text-white/50'
+                  }`}
+                >
+                  <span>{context.emoji}</span>
+                  <span>{context.label}</span>
+                  <span className="text-xs opacity-60">({count})</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Tasks List with Pull to Refresh */}
         <PullToRefresh onRefresh={handleRefresh} className="mt-4">
           {/* Refresh indicator */}
@@ -4886,6 +5188,18 @@ export default function Frog() {
                           }
                           return null;
                         })()}
+                        {/* CONTEXT BUNDLES: Show context indicator */}
+                        {taskContexts[task.id] && (() => {
+                          const ctx = CONTEXT_BUNDLES.find(c => c.id === taskContexts[task.id]);
+                          return ctx ? (
+                            <span
+                              className="text-xs px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400"
+                              title={ctx.description}
+                            >
+                              {ctx.emoji}
+                            </span>
+                          ) : null;
+                        })()}
                         {task.recurrence && task.recurrence !== 'none' && (
                           <span className="text-xs text-blue-400">🔄</span>
                         )}
@@ -5000,6 +5314,28 @@ export default function Frog() {
                     🎁 Preview rewards before starting
                   </button>
 
+                  {/* COMPLETION PROPHECY & CONTEXT BUNDLES: Extra actions row */}
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); showTaskProphecy(task); }}
+                      className="flex-1 glass-button py-2 rounded-xl text-indigo-400/70 text-xs hover:text-indigo-400 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <span>🔮</span>
+                      <span>How will I feel?</span>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openContextPicker(task); }}
+                      className={`flex-1 glass-button py-2 rounded-xl text-xs transition-colors flex items-center justify-center gap-1 ${
+                        taskContexts[task.id]
+                          ? 'text-cyan-400 bg-cyan-500/10'
+                          : 'text-cyan-400/70 hover:text-cyan-400'
+                      }`}
+                    >
+                      <span>{taskContexts[task.id] ? CONTEXT_BUNDLES.find(c => c.id === taskContexts[task.id])?.emoji : '📦'}</span>
+                      <span>{taskContexts[task.id] ? 'Change' : 'Set'} Context</span>
+                    </button>
+                  </div>
+
                   {/* TASK CHUNKING: Break it down button for difficult tasks */}
                   {task.difficulty >= 3 && !task.isChunked && !task.isChunk && (
                     <button
@@ -5095,6 +5431,20 @@ export default function Frog() {
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full text-xs flex items-center justify-center font-bold text-white">
                 {parkedTasks.length}
               </span>
+            </button>
+          )}
+          {/* ENERGY BORROWING: Borrow energy from tomorrow */}
+          {energy && energy <= 2 && (
+            <button
+              onClick={() => { Haptics.light(); setShowEnergyBorrow(true); }}
+              className={`glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform ${
+                energyDebt > 0
+                  ? 'bg-gradient-to-br from-purple-500/30 to-blue-500/30 border-2 border-purple-400/40'
+                  : 'bg-gradient-to-br from-purple-500/20 to-blue-500/20 border-2 border-purple-400/20'
+              }`}
+              title={energyDebt > 0 ? `Energy debt: ${energyDebt}` : "Borrow energy from tomorrow"}
+            >
+              💫
             </button>
           )}
           {/* FUTURE SELF: Show encouraging message on bad days */}
@@ -7822,6 +8172,192 @@ export default function Frog() {
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{microWinMessage.emoji}</span>
                   <span className="text-white font-medium">{microWinMessage.text}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ENERGY BORROWING: Borrow Modal */}
+        {showEnergyBorrow && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEnergyBorrow(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-2 border-purple-500/20">
+                <div className="text-5xl mb-4">💫</div>
+                <h2 className="text-xl font-bold text-white mb-2">Borrow Energy?</h2>
+                <p className="text-white/70 mb-4">
+                  Need to push through today? You can borrow energy from tomorrow.
+                </p>
+                <p className="text-white/50 text-sm mb-6">
+                  Tomorrow, we will remind you to take it easier as payback.
+                </p>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => borrowEnergy(1)}
+                    className="w-full glass-button py-3 rounded-xl text-purple-300 font-medium bg-purple-500/20 border border-purple-500/30"
+                  >
+                    Borrow Energy 💪
+                  </button>
+                  <button
+                    onClick={() => setShowEnergyBorrow(false)}
+                    className="w-full glass-button py-2 rounded-xl text-white/50"
+                  >
+                    Never mind
+                  </button>
+                </div>
+
+                {energyDebt > 0 && (
+                  <p className="text-purple-400/60 text-xs mt-4">
+                    Current energy debt: {energyDebt} day{energyDebt !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ENERGY BORROWING: Debt Reminder Modal */}
+        {showDebtReminder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-2 border-blue-500/20">
+                <div className="text-5xl mb-4">🌙</div>
+                <h2 className="text-xl font-bold text-white mb-2">Energy Payback Day</h2>
+                <p className="text-white/70 mb-6">{debtMessage}</p>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={acknowledgeDebt}
+                    className="w-full glass-button py-3 rounded-xl text-blue-300 font-medium bg-blue-500/20 border border-blue-500/30"
+                  >
+                    Got it, I will be gentle today 🌿
+                  </button>
+                  <button
+                    onClick={payBackEnergy}
+                    className="w-full glass-button py-2 rounded-xl text-green-400"
+                  >
+                    Clear my debt (feeling good!)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CONTEXT BUNDLES: Context Picker Modal */}
+        {showContextPicker && contextPickerTask && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowContextPicker(false)} />
+            <div className="relative w-full max-w-md mx-4 animate-slide-up">
+              <div className="glass-card p-6">
+                <h2 className="text-lg font-bold text-white mb-2">Set Context</h2>
+                <p className="text-white/60 text-sm mb-4">
+                  Where/when can you do "{contextPickerTask.title}"?
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {CONTEXT_BUNDLES.map(context => {
+                    const isSelected = taskContexts[contextPickerTask.id] === context.id;
+                    return (
+                      <button
+                        key={context.id}
+                        onClick={() => setTaskContext(contextPickerTask.id, context.id)}
+                        className={`p-3 rounded-xl text-left transition-all ${
+                          isSelected
+                            ? 'bg-cyan-500/20 border-2 border-cyan-500/50'
+                            : 'glass-card hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="text-2xl mb-1">{context.emoji}</div>
+                        <p className={`text-sm font-medium ${isSelected ? 'text-cyan-400' : 'text-white'}`}>
+                          {context.label}
+                        </p>
+                        <p className="text-white/40 text-xs">{context.description}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex gap-3">
+                  {taskContexts[contextPickerTask.id] && (
+                    <button
+                      onClick={() => {
+                        clearTaskContext(contextPickerTask.id);
+                        setShowContextPicker(false);
+                      }}
+                      className="flex-1 glass-button py-2 rounded-xl text-white/50"
+                    >
+                      Clear Context
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowContextPicker(false)}
+                    className="flex-1 glass-button py-2 rounded-xl text-white/70"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* COMPLETION PROPHECY: Prediction Modal */}
+        {showProphecy && currentProphecy && prophecyTask && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowProphecy(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-2 border-indigo-500/20">
+                <div className="text-5xl mb-4">🔮</div>
+                <h2 className="text-lg font-bold text-white mb-2">Completion Prophecy</h2>
+                <p className="text-white/60 text-sm mb-4">
+                  After completing "{prophecyTask.title}"...
+                </p>
+
+                <div className="glass-card p-4 bg-white/5 mb-4">
+                  <p className="text-lg text-white">
+                    You will feel <span className="text-indigo-400 font-medium">{currentProphecy.feeling}</span>
+                  </p>
+                  {currentProphecy.historicalNote && (
+                    <p className="text-white/40 text-xs mt-2">{currentProphecy.historicalNote}</p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <span className="text-white/40 text-xs">Confidence:</span>
+                  <div className="flex gap-1">
+                    {['low', 'medium', 'high'].map((level, i) => (
+                      <div
+                        key={level}
+                        className={`w-3 h-3 rounded-full ${
+                          i <= ['low', 'medium', 'high'].indexOf(currentProphecy.confidence)
+                            ? 'bg-indigo-500'
+                            : 'bg-white/20'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      setShowProphecy(false);
+                      startFocusWithStartXP(prophecyTask, 2);
+                    }}
+                    className="w-full glass-button py-3 rounded-xl text-indigo-300 font-medium bg-indigo-500/20 border border-indigo-500/30"
+                  >
+                    Start This Task ✨
+                  </button>
+                  <button
+                    onClick={() => setShowProphecy(false)}
+                    className="w-full glass-button py-2 rounded-xl text-white/50"
+                  >
+                    Maybe later
+                  </button>
                 </div>
               </div>
             </div>
