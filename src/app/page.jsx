@@ -699,6 +699,201 @@ const sortTasksByEnergy = (tasks, currentEnergy, energyPatterns) => {
   });
 };
 
+// TASK DNA: Analyze completion patterns to predict success
+const analyzeTaskDNA = (taskDNA) => {
+  const { completions, abandons } = taskDNA;
+
+  if (completions.length < 5) return null; // Need more data
+
+  // Analyze by different dimensions
+  const insights = {
+    bestCategories: {},
+    bestTimeOfDay: {},
+    bestDayOfWeek: {},
+    bestDifficulty: {},
+    bestEnergy: {},
+    overallSuccessRate: completions.length / (completions.length + abandons.length)
+  };
+
+  // Count completions by dimension
+  completions.forEach(task => {
+    insights.bestCategories[task.category] = (insights.bestCategories[task.category] || 0) + 1;
+    insights.bestTimeOfDay[task.timeOfDay] = (insights.bestTimeOfDay[task.timeOfDay] || 0) + 1;
+    insights.bestDayOfWeek[task.dayOfWeek] = (insights.bestDayOfWeek[task.dayOfWeek] || 0) + 1;
+    insights.bestDifficulty[task.difficulty] = (insights.bestDifficulty[task.difficulty] || 0) + 1;
+    insights.bestEnergy[task.energy] = (insights.bestEnergy[task.energy] || 0) + 1;
+  });
+
+  // Subtract abandons to get net score
+  abandons.forEach(task => {
+    insights.bestCategories[task.category] = (insights.bestCategories[task.category] || 0) - 0.5;
+    insights.bestTimeOfDay[task.timeOfDay] = (insights.bestTimeOfDay[task.timeOfDay] || 0) - 0.5;
+    insights.bestDifficulty[task.difficulty] = (insights.bestDifficulty[task.difficulty] || 0) - 0.5;
+  });
+
+  return insights;
+};
+
+// TASK DNA: Score a task for current conditions
+const scoreTaskDNA = (task, dnaInsights, currentEnergy, currentHour) => {
+  if (!dnaInsights) return 50; // Default neutral score
+
+  let score = 50;
+  const timeOfDay = currentHour < 12 ? 'morning' : currentHour < 17 ? 'afternoon' : 'evening';
+  const dayOfWeek = new Date().getDay();
+
+  // Category bonus (0-20 points)
+  const categoryScore = dnaInsights.bestCategories[task.category] || 0;
+  score += Math.min(20, categoryScore * 3);
+
+  // Time of day bonus (0-15 points)
+  const timeScore = dnaInsights.bestTimeOfDay[timeOfDay] || 0;
+  score += Math.min(15, timeScore * 2);
+
+  // Energy match bonus (0-15 points)
+  const energyScore = dnaInsights.bestEnergy[currentEnergy] || 0;
+  score += Math.min(15, energyScore * 2);
+
+  // Difficulty match bonus (0-10 points)
+  const difficultyScore = dnaInsights.bestDifficulty[task.difficulty] || 0;
+  score += Math.min(10, difficultyScore * 2);
+
+  return Math.min(100, Math.max(0, score));
+};
+
+// TASK DNA: Get top tasks likely to be completed
+const getDNARecommendations = (tasks, dnaInsights, currentEnergy) => {
+  if (!dnaInsights || tasks.length === 0) return [];
+
+  const currentHour = new Date().getHours();
+  const scored = tasks
+    .filter(t => !t.completed)
+    .map(task => ({
+      task,
+      score: scoreTaskDNA(task, dnaInsights, currentEnergy, currentHour)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return scored.slice(0, 3); // Top 3 recommendations
+};
+
+// AMBIENT SOUNDS: Available sound configurations
+const AMBIENT_SOUNDS = {
+  rain: {
+    name: 'Rain',
+    emoji: '🌧️',
+    description: 'Gentle rainfall',
+    // Using Web Audio API oscillators to simulate sounds
+    frequency: 200,
+    type: 'brown-noise'
+  },
+  coffee: {
+    name: 'Coffee Shop',
+    emoji: '☕',
+    description: 'Cafe ambience',
+    frequency: 150,
+    type: 'pink-noise'
+  },
+  lofi: {
+    name: 'Lo-Fi',
+    emoji: '🎵',
+    description: 'Chill beats',
+    frequency: 300,
+    type: 'sine-wave'
+  },
+  forest: {
+    name: 'Forest',
+    emoji: '🌲',
+    description: 'Nature sounds',
+    frequency: 250,
+    type: 'green-noise'
+  },
+  whitenoise: {
+    name: 'White Noise',
+    emoji: '📻',
+    description: 'Pure static',
+    frequency: 400,
+    type: 'white-noise'
+  },
+  silence: {
+    name: 'Silence',
+    emoji: '🔇',
+    description: 'No sound',
+    frequency: 0,
+    type: 'none'
+  }
+};
+
+// AMBIENT SOUNDS: Create noise generator using Web Audio API
+const createNoiseGenerator = (type, volume = 0.5) => {
+  if (typeof window === 'undefined' || type === 'none') return null;
+
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const bufferSize = 2 * audioContext.sampleRate;
+    const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+
+    // Generate different types of noise
+    for (let i = 0; i < bufferSize; i++) {
+      if (type === 'white-noise') {
+        output[i] = Math.random() * 2 - 1;
+      } else if (type === 'pink-noise' || type === 'brown-noise') {
+        // Brown noise (random walk)
+        const white = Math.random() * 2 - 1;
+        output[i] = (output[i - 1] || 0) + (0.02 * white);
+        output[i] = Math.max(-1, Math.min(1, output[i])); // Clamp
+      } else if (type === 'green-noise') {
+        // Green noise (mid-frequency emphasis)
+        output[i] = Math.sin(i * 0.01) * 0.3 + (Math.random() * 0.4 - 0.2);
+      } else {
+        // Sine wave for lo-fi
+        output[i] = Math.sin(i * 0.001) * 0.2;
+      }
+    }
+
+    const whiteNoise = audioContext.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+    whiteNoise.loop = true;
+
+    const gainNode = audioContext.createGain();
+    gainNode.gain.value = volume * 0.3; // Keep it subtle
+
+    whiteNoise.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    return { source: whiteNoise, gain: gainNode, context: audioContext };
+  } catch (e) {
+    console.log('Audio not available:', e);
+    return null;
+  }
+};
+
+// FUTURE SELF: Get a random past message for encouragement
+const getRandomFutureSelfMessage = (messages, currentMood = null) => {
+  if (messages.length === 0) return null;
+
+  // If low mood, prioritize uplifting messages
+  if (currentMood && currentMood <= 2) {
+    const upliftingMessages = messages.filter(m => m.mood >= 4);
+    if (upliftingMessages.length > 0) {
+      return upliftingMessages[Math.floor(Math.random() * upliftingMessages.length)];
+    }
+  }
+
+  // Otherwise random
+  return messages[Math.floor(Math.random() * messages.length)];
+};
+
+// FUTURE SELF: Prompt suggestions for leaving messages
+const FUTURE_SELF_PROMPTS = [
+  "What would you tell yourself on a hard day?",
+  "What made this task feel good to complete?",
+  "Any advice for future-you who's struggling?",
+  "Describe how you feel right now in one sentence.",
+  "What's one thing you're proud of today?"
+];
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -891,6 +1086,28 @@ export default function Frog() {
   // ENERGY-BASED SORTING - Smart task ordering
   const [energySortEnabled, setEnergySortEnabled] = useState(true);
   const [sortedByEnergy, setSortedByEnergy] = useState(false);
+
+  // TASK DNA - Learn completion patterns for smart suggestions
+  const [taskDNA, setTaskDNA] = useState({
+    completions: [], // [{category, difficulty, timeOfDay, dayOfWeek, energy, duration, completed: true}]
+    abandons: []     // [{category, difficulty, timeOfDay, dayOfWeek, energy, duration, completed: false}]
+  });
+  const [dnaInsights, setDnaInsights] = useState(null); // Computed insights
+  const [showDNASuggestion, setShowDNASuggestion] = useState(false);
+  const [dnaSuggestedTask, setDnaSuggestedTask] = useState(null);
+
+  // AMBIENT SOUND MIXER - Focus sounds
+  const [ambientSoundEnabled, setAmbientSoundEnabled] = useState(false);
+  const [currentAmbientSound, setCurrentAmbientSound] = useState('rain');
+  const [ambientVolume, setAmbientVolume] = useState(0.5);
+  const ambientAudioRef = useRef(null);
+
+  // FUTURE SELF MESSAGES - Motivation from past wins
+  const [futureSelfMessages, setFutureSelfMessages] = useState([]); // [{id, taskTitle, message, timestamp, mood}]
+  const [showFutureSelfCapture, setShowFutureSelfCapture] = useState(false);
+  const [futureSelfInput, setFutureSelfInput] = useState('');
+  const [showFutureSelfMessage, setShowFutureSelfMessage] = useState(false);
+  const [currentFutureSelfMessage, setCurrentFutureSelfMessage] = useState(null);
 
   const [userId, setUserId] = useState(null);
   
@@ -1216,6 +1433,20 @@ export default function Frog() {
         const savedSensoryPrefs = Storage.get('sensoryPreferences', null);
         if (savedSensoryPrefs) {
           setSensoryPreferences(prev => ({ ...prev, ...savedSensoryPrefs }));
+        }
+
+        // TASK DNA: Load completion patterns
+        const savedTaskDNA = Storage.get('taskDNA', null);
+        if (savedTaskDNA) {
+          setTaskDNA(savedTaskDNA);
+          const insights = analyzeTaskDNA(savedTaskDNA);
+          setDnaInsights(insights);
+        }
+
+        // FUTURE SELF: Load past messages
+        const savedFutureSelfMessages = Storage.get('futureSelfMessages', []);
+        if (savedFutureSelfMessages.length > 0) {
+          setFutureSelfMessages(savedFutureSelfMessages);
         }
 
         // Check for rollover tasks (from previous days)
@@ -1717,6 +1948,48 @@ export default function Frog() {
     setScreen('focus');
   };
 
+  // AMBIENT SOUND: Stop ambient sound (defined early for use in handleCompleteTask)
+  const stopAmbientSound = useCallback(() => {
+    if (ambientAudioRef.current) {
+      try {
+        ambientAudioRef.current.source.stop();
+        ambientAudioRef.current.context.close();
+      } catch (e) {}
+      ambientAudioRef.current = null;
+    }
+    setAmbientSoundEnabled(false);
+  }, []);
+
+  // TASK DNA: Record a completion for pattern learning (defined early for use in handleCompleteTask)
+  const recordTaskDNA = useCallback((task, completed, duration) => {
+    const now = new Date();
+    const entry = {
+      id: Date.now(),
+      category: task.category,
+      difficulty: task.difficulty || 2,
+      timeOfDay: now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening',
+      dayOfWeek: now.getDay(),
+      energy: energy || 3,
+      duration: duration,
+      completed: completed,
+      timestamp: now.toISOString()
+    };
+
+    setTaskDNA(prev => {
+      const updated = {
+        completions: completed ? [...prev.completions, entry].slice(-50) : prev.completions,
+        abandons: !completed ? [...prev.abandons, entry].slice(-30) : prev.abandons
+      };
+      Storage.set('taskDNA', updated);
+
+      // Recalculate insights
+      const insights = analyzeTaskDNA(updated);
+      setDnaInsights(insights);
+
+      return updated;
+    });
+  }, [energy]);
+
   const handleCompleteTask = useCallback(async (task) => {
     const baseXP = task.difficulty * 10;
     const frogBonus = task.frog ? 20 : 0;
@@ -1870,9 +2143,6 @@ export default function Frog() {
     const nextTask = findNextSuggestedTask(remainingTasks, energy, task);
     setSuggestedNextTask(nextTask);
 
-    // Get encouraging message for this completion
-    const encouragement = getRandomEncouragement(lastRewardType, settings.gentleLanguage);
-
     setCompletedTaskData({
       task,
       actualMinutes,
@@ -1911,6 +2181,9 @@ export default function Frog() {
     setFocusTask(null);
     setTimerStartTime(null);
 
+    // AMBIENT SOUND: Stop ambient sounds when task completes
+    stopAmbientSound();
+
     // BODY DOUBLING: End session if active
     if (bodyDoublingActive) {
       setBodyDoublingActive(false);
@@ -1941,12 +2214,24 @@ export default function Frog() {
       }
     }
 
+    // TASK DNA: Record completion for pattern learning
+    recordTaskDNA(task, true, actualMinutes);
+
+    // FUTURE SELF: Prompt for message after completing (especially for frogs or hard tasks)
+    if (task.frog || task.difficulty >= 4) {
+      // Show prompt after transition screen
+      setTimeout(() => {
+        setCompletedTaskData(prev => ({ ...prev, taskForMessage: task }));
+        setShowFutureSelfCapture(true);
+      }, 3500);
+    }
+
     // Show transition screen (will auto-dismiss or user can continue)
     setShowTransition(true);
 
     Storage.set('xp', newXP);
     Storage.set('level', Math.floor(newXP / 100) + 1);
-  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive, sensoryPreferences, accountabilityPartner, emergencyMode, momentumStreak, showTransition]);
+  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive, sensoryPreferences, accountabilityPartner, emergencyMode, momentumStreak, showTransition, recordTaskDNA, stopAmbientSound]);
 
   // TRANSITION MOMENTUM: Find the best next task to suggest
   const findNextSuggestedTask = useCallback((remainingTasks, currentEnergy, completedTask) => {
@@ -2339,6 +2624,84 @@ export default function Frog() {
     return sortTasksByEnergy(taskList, energy, energyPatterns);
   }, [energySortEnabled, energy, energyPatterns]);
 
+  // TASK DNA: Get personalized task suggestion
+  const getDNASuggestion = useCallback(() => {
+    const recommendations = getDNARecommendations(tasks, dnaInsights, energy);
+    if (recommendations.length > 0) {
+      setDnaSuggestedTask(recommendations[0]);
+      setShowDNASuggestion(true);
+      Haptics.light();
+    }
+  }, [tasks, dnaInsights, energy]);
+
+  // AMBIENT SOUND: Start playing ambient sound
+  const startAmbientSound = useCallback((soundType) => {
+    // Stop any existing sound
+    if (ambientAudioRef.current) {
+      try {
+        ambientAudioRef.current.source.stop();
+        ambientAudioRef.current.context.close();
+      } catch (e) {}
+      ambientAudioRef.current = null;
+    }
+
+    if (soundType === 'silence' || !AMBIENT_SOUNDS[soundType]) {
+      setAmbientSoundEnabled(false);
+      return;
+    }
+
+    const sound = AMBIENT_SOUNDS[soundType];
+    const generator = createNoiseGenerator(sound.type, ambientVolume);
+
+    if (generator) {
+      generator.source.start();
+      ambientAudioRef.current = generator;
+      setAmbientSoundEnabled(true);
+      setCurrentAmbientSound(soundType);
+    }
+  }, [ambientVolume]);
+
+  // AMBIENT SOUND: Adjust volume
+  const adjustAmbientVolume = useCallback((newVolume) => {
+    setAmbientVolume(newVolume);
+    if (ambientAudioRef.current) {
+      ambientAudioRef.current.gain.gain.value = newVolume * 0.3;
+    }
+  }, []);
+
+  // FUTURE SELF: Save a message for future self
+  const saveFutureSelfMessage = useCallback((taskTitle, message, mood = 3) => {
+    if (!message.trim()) return;
+
+    const entry = {
+      id: Date.now(),
+      taskTitle: taskTitle,
+      message: message.trim(),
+      timestamp: new Date().toISOString(),
+      mood: mood
+    };
+
+    setFutureSelfMessages(prev => {
+      const updated = [...prev, entry].slice(-50); // Keep last 50
+      Storage.set('futureSelfMessages', updated);
+      return updated;
+    });
+
+    setShowFutureSelfCapture(false);
+    setFutureSelfInput('');
+    Haptics.success();
+  }, []);
+
+  // FUTURE SELF: Show a random past message
+  const showRandomFutureSelfMessage = useCallback(() => {
+    const message = getRandomFutureSelfMessage(futureSelfMessages, energy);
+    if (message) {
+      setCurrentFutureSelfMessage(message);
+      setShowFutureSelfMessage(true);
+      Haptics.light();
+    }
+  }, [futureSelfMessages, energy]);
+
   // Delete a task
   const handleDeleteTask = useCallback((taskId) => {
     Haptics.impact('heavy');
@@ -2452,6 +2815,9 @@ export default function Frog() {
   const cancelFocus = () => {
     // DISTRACTION JOURNAL: Check if we should capture what pulled them away
     const minutesElapsed = timerStartTime ? Math.floor((Date.now() - timerStartTime) / 60000) : 0;
+
+    // Stop ambient sounds when focus ends
+    stopAmbientSound();
 
     if (minutesElapsed >= 1) {
       // Show distraction capture modal
@@ -3092,8 +3458,63 @@ export default function Frog() {
             <div className="mt-6">
               <FocusSounds isPlaying={timerRunning} />
             </div>
+
+            {/* AMBIENT SOUND MIXER */}
+            <div className="mt-4 w-full max-w-xs">
+              <div className="glass-card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🎧</span>
+                    <span className="text-white/80 text-sm font-medium">Ambient Sounds</span>
+                  </div>
+                  {ambientSoundEnabled && (
+                    <button
+                      onClick={stopAmbientSound}
+                      className="text-xs text-red-400/70 hover:text-red-400"
+                    >
+                      Stop
+                    </button>
+                  )}
+                </div>
+
+                {/* Sound Type Selector */}
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {Object.entries(AMBIENT_SOUNDS).map(([key, sound]) => (
+                    <button
+                      key={key}
+                      onClick={() => key === 'silence' ? stopAmbientSound() : startAmbientSound(key)}
+                      className={`p-2 rounded-lg text-center transition-all ${
+                        currentAmbientSound === key && ambientSoundEnabled
+                          ? 'bg-green-500/30 border border-green-500/50'
+                          : 'bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      <span className="text-lg">{sound.emoji}</span>
+                      <p className="text-white/60 text-xs mt-1">{sound.name}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Volume Slider */}
+                {ambientSoundEnabled && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-white/40 text-xs">🔈</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={ambientVolume}
+                      onChange={(e) => adjustAmbientVolume(parseFloat(e.target.value))}
+                      className="flex-1 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-green-400"
+                    />
+                    <span className="text-white/40 text-xs">🔊</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          
+
           {/* Quick Thought Capture - Always visible in focus mode */}
           <div className="w-full max-w-sm mb-6">
             {showThoughtInput ? (
@@ -3582,6 +4003,26 @@ export default function Frog() {
 
         {/* Floating Action Buttons */}
         <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-30">
+          {/* FUTURE SELF: Show encouraging message on bad days */}
+          {(badDayMode || energy <= 2) && futureSelfMessages.length > 0 && (
+            <button
+              onClick={showRandomFutureSelfMessage}
+              className="glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform bg-gradient-to-br from-pink-500/20 to-purple-500/20 border-2 border-pink-400/20"
+              title="Message from past you"
+            >
+              💌
+            </button>
+          )}
+          {/* TASK DNA: Smart suggestion based on patterns */}
+          {taskDNA.completions.length >= 3 && tasks.length > 0 && (
+            <button
+              onClick={getDNASuggestion}
+              className="glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform bg-gradient-to-br from-cyan-500/20 to-green-500/20 border-2 border-cyan-400/20"
+              title="DNA-matched task suggestion"
+            >
+              🧬
+            </button>
+          )}
           {/* FOCUS BUDDY: AI encouragement chat */}
           <button
             onClick={openFocusBuddy}
@@ -3945,6 +4386,50 @@ export default function Frog() {
                       </button>
                     </div>
 
+                    {/* Task DNA Smart Suggestions */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🧬</span>
+                        <div>
+                          <p className="text-white font-medium">Task DNA Matching</p>
+                          <p className="text-white/40 text-xs">
+                            {taskDNA.completions.length > 0
+                              ? `Learning from ${taskDNA.completions.length} completed tasks`
+                              : 'Complete tasks to build your pattern profile'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={getDNASuggestion}
+                        disabled={taskDNA.completions.length < 3}
+                        className="glass-button px-3 py-1 rounded-lg text-sm text-white/70 disabled:opacity-40"
+                      >
+                        Suggest
+                      </button>
+                    </div>
+
+                    {/* Future Self Messages */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">💌</span>
+                        <div>
+                          <p className="text-white font-medium">Future Self Messages</p>
+                          <p className="text-white/40 text-xs">
+                            {futureSelfMessages.length > 0
+                              ? `${futureSelfMessages.length} message${futureSelfMessages.length !== 1 ? 's' : ''} saved for rough days`
+                              : 'Complete frogs to leave encouragement'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={showRandomFutureSelfMessage}
+                        disabled={futureSelfMessages.length === 0}
+                        className="glass-button px-3 py-1 rounded-lg text-sm text-white/70 disabled:opacity-40"
+                      >
+                        View
+                      </button>
+                    </div>
+
                     {/* Distraction Patterns Summary */}
                     {Object.keys(distractionPatterns).length > 0 && (
                       <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
@@ -3960,7 +4445,7 @@ export default function Frog() {
                     {/* Quick explanation */}
                     <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
                       <p className="text-purple-300 text-xs">
-                        <strong>Energy Sorting ⚡</strong> shows right tasks for your energy. <strong>Time Anchoring ⏰</strong> learns your patterns. <strong>Distraction Journal 📓</strong> tracks what pulls you away.
+                        <strong>Task DNA 🧬</strong> learns when you succeed. <strong>Future Self 💌</strong> saves encouragement for bad days. <strong>Energy Sorting ⚡</strong> shows right tasks for your energy.
                       </p>
                     </div>
                   </div>
@@ -5329,6 +5814,147 @@ export default function Frog() {
                     Skip for now
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TASK DNA: Smart suggestion modal */}
+        {showDNASuggestion && dnaSuggestedTask && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDNASuggestion(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center">
+                <div className="text-5xl mb-4">🧬</div>
+                <h2 className="text-xl font-bold text-white mb-2">Task DNA Match!</h2>
+                <p className="text-white/60 text-sm mb-4">
+                  Based on your patterns, you're most likely to finish this right now:
+                </p>
+
+                {/* Suggested task card */}
+                <div className="glass-card bg-gradient-to-r from-green-500/10 to-emerald-500/10 p-4 rounded-xl mb-4 text-left border border-green-500/20">
+                  <div className="flex items-center gap-3">
+                    <div className="glass-icon-sm w-12 h-12 flex items-center justify-center">
+                      <span className="text-2xl">{CATEGORIES[dnaSuggestedTask.task.category]?.emoji}</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white font-medium">{dnaSuggestedTask.task.title}</p>
+                      <p className="text-white/50 text-xs">
+                        {dnaSuggestedTask.task.difficulty}⭐ • {dnaSuggestedTask.score}% match
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {dnaInsights && (
+                  <p className="text-white/40 text-xs mb-4">
+                    📊 Success rate: {Math.round(dnaInsights.overallSuccessRate * 100)}% ({taskDNA.completions.length} completions)
+                  </p>
+                )}
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      setShowDNASuggestion(false);
+                      startFocusWithStartXP(dnaSuggestedTask.task, 5);
+                    }}
+                    className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-500/30 hover:from-green-500/30 hover:to-emerald-500/30 transition-all"
+                  >
+                    <span className="mr-2">⚡</span>
+                    Start This Task
+                  </button>
+
+                  <button
+                    onClick={() => setShowDNASuggestion(false)}
+                    className="w-full glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                  >
+                    Maybe later
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FUTURE SELF: Leave a message modal */}
+        {showFutureSelfCapture && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowFutureSelfCapture(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6">
+                <div className="text-center mb-6">
+                  <div className="text-5xl mb-3">💌</div>
+                  <h2 className="text-xl font-bold text-white mb-2">Message to Future You</h2>
+                  <p className="text-white/60 text-sm">
+                    {FUTURE_SELF_PROMPTS[Math.floor(Math.random() * FUTURE_SELF_PROMPTS.length)]}
+                  </p>
+                </div>
+
+                <textarea
+                  value={futureSelfInput}
+                  onChange={(e) => setFutureSelfInput(e.target.value)}
+                  placeholder="Write something encouraging for when you're having a rough day..."
+                  className="w-full glass-input px-4 py-3 rounded-xl text-white placeholder-white/30 text-sm resize-none h-24 mb-4"
+                />
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => saveFutureSelfMessage(
+                      completedTaskData?.task?.title || 'Unknown task',
+                      futureSelfInput,
+                      energy || 3
+                    )}
+                    disabled={!futureSelfInput.trim()}
+                    className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/30 hover:from-purple-500/30 hover:to-pink-500/30 transition-all disabled:opacity-50"
+                  >
+                    <span className="mr-2">💾</span>
+                    Save for Future Me
+                  </button>
+
+                  <button
+                    onClick={() => setShowFutureSelfCapture(false)}
+                    className="w-full glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                  >
+                    Skip this time
+                  </button>
+                </div>
+
+                {futureSelfMessages.length > 0 && (
+                  <p className="text-white/40 text-xs text-center mt-4">
+                    💡 You have {futureSelfMessages.length} message{futureSelfMessages.length !== 1 ? 's' : ''} saved for future you!
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FUTURE SELF: View past message modal */}
+        {showFutureSelfMessage && currentFutureSelfMessage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowFutureSelfMessage(false)} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center">
+                <div className="text-5xl mb-4">💌</div>
+                <h2 className="text-xl font-bold text-white mb-2">A Message From Past You</h2>
+                <p className="text-white/50 text-xs mb-4">
+                  After completing "{currentFutureSelfMessage.taskTitle}"
+                </p>
+
+                <div className="glass-card bg-purple-500/10 border border-purple-500/20 p-4 rounded-xl mb-4">
+                  <p className="text-white text-lg italic">"{currentFutureSelfMessage.message}"</p>
+                </div>
+
+                <p className="text-white/40 text-xs mb-6">
+                  {new Date(currentFutureSelfMessage.timestamp).toLocaleDateString()}
+                </p>
+
+                <button
+                  onClick={() => setShowFutureSelfMessage(false)}
+                  className="w-full glass-button py-3 rounded-xl text-white/80 hover:text-white transition-colors"
+                >
+                  Thanks, past me! 💙
+                </button>
               </div>
             </div>
           </div>
