@@ -588,6 +588,117 @@ const checkTimeAnchor = (energyPatterns, currentEnergy) => {
   return null;
 };
 
+// MOMENTUM MODE: Find the most similar task to continue the flow
+const findSimilarTask = (completedTask, availableTasks) => {
+  if (!completedTask || availableTasks.length === 0) return null;
+
+  const incomplete = availableTasks.filter(t => !t.completed && t.id !== completedTask.id);
+  if (incomplete.length === 0) return null;
+
+  // Score tasks by similarity
+  const scored = incomplete.map(task => {
+    let score = 0;
+
+    // Same category = high score
+    if (task.category === completedTask.category) score += 5;
+
+    // Similar difficulty = bonus
+    const diffDiff = Math.abs((task.difficulty || 2) - (completedTask.difficulty || 2));
+    score += (3 - diffDiff);
+
+    // Similar time estimate = bonus
+    const timeDiff = Math.abs((task.estimatedMinutes || 25) - (completedTask.estimatedMinutes || 25));
+    if (timeDiff <= 10) score += 2;
+
+    // Prefer easier tasks to maintain momentum
+    score += (6 - (task.difficulty || 2));
+
+    return { task, score };
+  });
+
+  // Sort by score and return the best match
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0]?.task || null;
+};
+
+// DISTRACTION JOURNAL: Common distraction categories
+const DISTRACTION_CATEGORIES = [
+  { id: 'phone', emoji: '📱', label: 'Phone/Social Media' },
+  { id: 'notification', emoji: '🔔', label: 'Notification' },
+  { id: 'thought', emoji: '💭', label: 'Random thought/idea' },
+  { id: 'hunger', emoji: '🍕', label: 'Hunger/Thirst' },
+  { id: 'restroom', emoji: '🚽', label: 'Restroom break' },
+  { id: 'person', emoji: '👤', label: 'Someone interrupted' },
+  { id: 'bored', emoji: '😴', label: 'Got bored/Lost interest' },
+  { id: 'anxious', emoji: '😰', label: 'Felt anxious/overwhelmed' },
+  { id: 'other', emoji: '❓', label: 'Something else' }
+];
+
+// DISTRACTION JOURNAL: Get personalized tips based on patterns
+const getDistractionTips = (patterns) => {
+  const tips = [];
+  const sorted = Object.entries(patterns).sort((a, b) => b[1] - a[1]);
+
+  if (sorted.length === 0) return ['Keep tracking to discover your patterns!'];
+
+  const topDistraction = sorted[0][0];
+  const count = sorted[0][1];
+
+  if (topDistraction === 'phone' && count >= 3) {
+    tips.push('📱 Phone is your #1 distraction. Try putting it in another room during focus time.');
+    tips.push('Consider using app blockers during focus sessions.');
+  }
+  if (topDistraction === 'notification' && count >= 3) {
+    tips.push('🔔 Notifications pull you away often. Enable Do Not Disturb mode!');
+  }
+  if (topDistraction === 'thought' && count >= 3) {
+    tips.push('💭 Your mind wanders a lot! Use the Thought Dump feature to capture ideas without losing focus.');
+  }
+  if (topDistraction === 'hunger' && count >= 2) {
+    tips.push('🍕 Hunger derails you. Try having a snack ready before focus sessions.');
+  }
+  if (topDistraction === 'bored' && count >= 2) {
+    tips.push('😴 Boredom is common with ADHD. Try shorter focus bursts (5-10 min) or body doubling.');
+  }
+  if (topDistraction === 'anxious' && count >= 2) {
+    tips.push('😰 Anxiety is interrupting. Consider breaking tasks into smaller chunks or using the Panic Button.');
+  }
+
+  return tips.length > 0 ? tips : ['You\'re building awareness - that\'s the first step to improvement!'];
+};
+
+// ENERGY-BASED SORTING: Sort tasks based on current energy level
+const sortTasksByEnergy = (tasks, currentEnergy, energyPatterns) => {
+  if (!currentEnergy || tasks.length === 0) return tasks;
+
+  return [...tasks].sort((a, b) => {
+    // High energy (4-5): Prioritize difficult tasks and frogs
+    if (currentEnergy >= 4) {
+      // Frogs first when high energy
+      if (a.frog && !b.frog) return -1;
+      if (!a.frog && b.frog) return 1;
+      // Then by difficulty (harder first)
+      return (b.difficulty || 2) - (a.difficulty || 2);
+    }
+
+    // Medium energy (3): Balanced approach
+    if (currentEnergy === 3) {
+      // Moderate difficulty first
+      const aDiff = Math.abs((a.difficulty || 2) - 3);
+      const bDiff = Math.abs((b.difficulty || 2) - 3);
+      return aDiff - bDiff;
+    }
+
+    // Low energy (1-2): Easy tasks first
+    // Easy tasks first
+    if ((a.difficulty || 2) !== (b.difficulty || 2)) {
+      return (a.difficulty || 2) - (b.difficulty || 2);
+    }
+    // Then shorter tasks
+    return (a.estimatedMinutes || 25) - (b.estimatedMinutes || 25);
+  });
+};
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -764,6 +875,22 @@ export default function Frog() {
   const [lastTimeAnchorCheck, setLastTimeAnchorCheck] = useState(null);
   const [showTimeAnchorSuggestion, setShowTimeAnchorSuggestion] = useState(false);
   const [timeAnchorMessage, setTimeAnchorMessage] = useState(null);
+
+  // MOMENTUM MODE - Capitalize on consecutive completions
+  const [momentumStreak, setMomentumStreak] = useState(0); // Consecutive completions this session
+  const [momentumMode, setMomentumMode] = useState(false); // Auto-triggered after 2+ completions
+  const [momentumSuggestion, setMomentumSuggestion] = useState(null); // Suggested next similar task
+  const [showMomentumPrompt, setShowMomentumPrompt] = useState(false);
+
+  // DISTRACTION JOURNAL - Track what pulls attention away
+  const [showDistractionCapture, setShowDistractionCapture] = useState(false);
+  const [distractionLog, setDistractionLog] = useState([]); // [{timestamp, reason, task, duration}]
+  const [currentDistraction, setCurrentDistraction] = useState('');
+  const [distractionPatterns, setDistractionPatterns] = useState({}); // {reason: count}
+
+  // ENERGY-BASED SORTING - Smart task ordering
+  const [energySortEnabled, setEnergySortEnabled] = useState(true);
+  const [sortedByEnergy, setSortedByEnergy] = useState(false);
 
   const [userId, setUserId] = useState(null);
   
@@ -1795,12 +1922,31 @@ export default function Frog() {
       exitEmergencyMode(true);
     }
 
+    // MOMENTUM MODE: Track consecutive completions
+    const newMomentumStreak = momentumStreak + 1;
+    setMomentumStreak(newMomentumStreak);
+
+    // Trigger momentum mode prompt after 2+ completions
+    if (newMomentumStreak >= 2 && remainingTasks.length > 0) {
+      const similarTask = findSimilarTask(task, remainingTasks);
+      if (similarTask) {
+        setMomentumSuggestion(similarTask);
+        setMomentumMode(true);
+        // Show momentum prompt after transition dismisses
+        setTimeout(() => {
+          if (!showTransition) {
+            setShowMomentumPrompt(true);
+          }
+        }, 3000);
+      }
+    }
+
     // Show transition screen (will auto-dismiss or user can continue)
     setShowTransition(true);
 
     Storage.set('xp', newXP);
     Storage.set('level', Math.floor(newXP / 100) + 1);
-  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive, sensoryPreferences, accountabilityPartner, emergencyMode]);
+  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive, sensoryPreferences, accountabilityPartner, emergencyMode, momentumStreak, showTransition]);
 
   // TRANSITION MOMENTUM: Find the best next task to suggest
   const findNextSuggestedTask = useCallback((remainingTasks, currentEnergy, completedTask) => {
@@ -2103,6 +2249,96 @@ export default function Frog() {
     }
   }, [timeAnchorEnabled, energyPatterns, energy]);
 
+  // MOMENTUM MODE: Trigger after task completion
+  const checkMomentumMode = useCallback((completedTask) => {
+    const newStreak = momentumStreak + 1;
+    setMomentumStreak(newStreak);
+
+    // Activate momentum mode after 2+ consecutive completions
+    if (newStreak >= 2) {
+      setMomentumMode(true);
+      const nextTask = findSimilarTask(completedTask, tasks);
+      if (nextTask) {
+        setMomentumSuggestion(nextTask);
+        setShowMomentumPrompt(true);
+        Haptics.success();
+      }
+    }
+  }, [momentumStreak, tasks]);
+
+  // MOMENTUM MODE: Accept suggestion and continue
+  const acceptMomentumSuggestion = useCallback(() => {
+    if (momentumSuggestion) {
+      setShowMomentumPrompt(false);
+      // Start with a shorter timer to maintain momentum
+      startFocusWithStartXP(momentumSuggestion, 5);
+    }
+  }, [momentumSuggestion, startFocusWithStartXP]);
+
+  // MOMENTUM MODE: Decline and reset
+  const declineMomentumSuggestion = useCallback(() => {
+    setShowMomentumPrompt(false);
+    setMomentumMode(false);
+    setMomentumStreak(0);
+    setMomentumSuggestion(null);
+  }, []);
+
+  // DISTRACTION JOURNAL: Record a distraction
+  const recordDistraction = useCallback((reason, customReason = '') => {
+    const entry = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      reason: reason,
+      customReason: customReason,
+      task: focusTask?.title || 'Unknown task',
+      duration: timerStartTime ? Math.floor((Date.now() - timerStartTime) / 60000) : 0
+    };
+
+    setDistractionLog(prev => {
+      const updated = [...prev, entry];
+      Storage.set('distractionLog', updated);
+      return updated;
+    });
+
+    // Update pattern counts
+    setDistractionPatterns(prev => {
+      const updated = { ...prev, [reason]: (prev[reason] || 0) + 1 };
+      Storage.set('distractionPatterns', updated);
+      return updated;
+    });
+
+    setShowDistractionCapture(false);
+    setCurrentDistraction('');
+
+    // Track for bad day detection
+    setBadDaySignals(prev => ({
+      ...prev,
+      focusAbandons: prev.focusAbandons + 1
+    }));
+
+    Haptics.light();
+  }, [focusTask, timerStartTime]);
+
+  // DISTRACTION JOURNAL: Show capture modal when exiting focus early
+  const handleEarlyFocusExit = useCallback(() => {
+    // Only show if they've been focusing for at least 1 minute
+    const minutesElapsed = timerStartTime ? Math.floor((Date.now() - timerStartTime) / 60000) : 0;
+    if (minutesElapsed >= 1) {
+      setShowDistractionCapture(true);
+    } else {
+      // Too short, just exit
+      setScreen('tasks');
+      setFocusTask(null);
+      setTimerRunning(false);
+    }
+  }, [timerStartTime]);
+
+  // ENERGY-BASED SORTING: Get energy-sorted tasks
+  const getEnergySortedTasks = useCallback((taskList) => {
+    if (!energySortEnabled || !energy) return taskList;
+    return sortTasksByEnergy(taskList, energy, energyPatterns);
+  }, [energySortEnabled, energy, energyPatterns]);
+
   // Delete a task
   const handleDeleteTask = useCallback((taskId) => {
     Haptics.impact('heavy');
@@ -2214,9 +2450,22 @@ export default function Frog() {
   }, [userId, refreshCategories]);
 
   const cancelFocus = () => {
-    setTimerRunning(false);
-    setFocusTask(null);
-    setScreen('tasks');
+    // DISTRACTION JOURNAL: Check if we should capture what pulled them away
+    const minutesElapsed = timerStartTime ? Math.floor((Date.now() - timerStartTime) / 60000) : 0;
+
+    if (minutesElapsed >= 1) {
+      // Show distraction capture modal
+      setTimerRunning(false);
+      setShowDistractionCapture(true);
+      // Reset momentum streak since they're abandoning
+      setMomentumStreak(0);
+      setMomentumMode(false);
+    } else {
+      // Too short, just exit normally
+      setTimerRunning(false);
+      setFocusTask(null);
+      setScreen('tasks');
+    }
   };
 
   const toggleTimer = () => {
@@ -2386,13 +2635,32 @@ export default function Frog() {
     ? tasks.filter(t => !t.frog).length
     : 0;
 
-  // Sort tasks - frog first, then by difficulty
-  const sortedTasks = [...filteredTasks].sort((a, b) => {
-    // Frog always first
-    if (a.frog && !b.frog) return -1;
-    if (!a.frog && b.frog) return 1;
-    return b.difficulty - a.difficulty;
-  });
+  // ENERGY-BASED SORTING: Sort tasks based on current energy level
+  const sortedTasks = (() => {
+    let sorted = [...filteredTasks];
+
+    if (energySortEnabled && energy) {
+      // Apply energy-based sorting
+      sorted = sortTasksByEnergy(sorted, energy, energyPatterns);
+      // But always keep frog at top if high energy
+      if (energy >= 4) {
+        sorted.sort((a, b) => {
+          if (a.frog && !b.frog) return -1;
+          if (!a.frog && b.frog) return 1;
+          return 0;
+        });
+      }
+    } else {
+      // Default sort - frog first, then by difficulty
+      sorted.sort((a, b) => {
+        if (a.frog && !b.frog) return -1;
+        if (!a.frog && b.frog) return 1;
+        return b.difficulty - a.difficulty;
+      });
+    }
+
+    return sorted;
+  })();
 
   // ADHD: One Thing Mode - show only frog task when enabled
   const displayTasks = oneThingMode && dailyFrog
@@ -2948,6 +3216,36 @@ export default function Frog() {
               >
                 Exit
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ENERGY SORTING: Show indicator when active */}
+        {energySortEnabled && energy && !badDayMode && (
+          <div className="px-4 mt-2">
+            <div className={`glass-card p-2 flex items-center justify-center gap-2 text-xs ${
+              energy >= 4 ? 'bg-green-500/10 border border-green-500/20' :
+              energy <= 2 ? 'bg-orange-500/10 border border-orange-500/20' :
+              'bg-white/5 border border-white/10'
+            }`}>
+              <span>{energy >= 4 ? '⚡' : energy <= 2 ? '🌱' : '⚖️'}</span>
+              <span className={energy >= 4 ? 'text-green-400' : energy <= 2 ? 'text-orange-400' : 'text-white/60'}>
+                {energy >= 4 ? 'High energy mode: Hard tasks first' :
+                 energy <= 2 ? 'Low energy mode: Easy wins first' :
+                 'Balanced mode: Mix of tasks'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* MOMENTUM MODE: Active streak indicator */}
+        {momentumMode && momentumStreak >= 2 && (
+          <div className="px-4 mt-2">
+            <div className="glass-card p-2 bg-orange-500/10 border border-orange-500/20 flex items-center justify-center gap-2">
+              <span className="text-lg animate-pulse">🔥</span>
+              <span className="text-orange-400 text-xs font-medium">
+                Momentum active! {momentumStreak} in a row
+              </span>
             </div>
           </div>
         )}
@@ -3622,10 +3920,47 @@ export default function Frog() {
                       </button>
                     </div>
 
+                    {/* Energy-Based Sorting Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">⚡</span>
+                        <div>
+                          <p className="text-white font-medium">Energy-Smart Sorting</p>
+                          <p className="text-white/40 text-xs">
+                            {energy >= 4 ? 'High energy → Hard tasks first' :
+                             energy <= 2 ? 'Low energy → Easy tasks first' :
+                             'Tasks sorted by your current energy'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setEnergySortEnabled(prev => !prev)}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          energySortEnabled ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          energySortEnabled ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Distraction Patterns Summary */}
+                    {Object.keys(distractionPatterns).length > 0 && (
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                        <p className="text-blue-300 text-xs font-medium mb-2">📓 Distraction Insights</p>
+                        <div className="space-y-1">
+                          {getDistractionTips(distractionPatterns).map((tip, i) => (
+                            <p key={i} className="text-white/60 text-xs">{tip}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Quick explanation */}
                     <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
                       <p className="text-purple-300 text-xs">
-                        <strong>Panic Button 🫂</strong> for overwhelming moments. <strong>Accountability Partner 👥</strong> for real human support. <strong>Time Anchoring ⏰</strong> learns your patterns.
+                        <strong>Energy Sorting ⚡</strong> shows right tasks for your energy. <strong>Time Anchoring ⏰</strong> learns your patterns. <strong>Distraction Journal 📓</strong> tracks what pulls you away.
                       </p>
                     </div>
                   </div>
@@ -4867,6 +5202,134 @@ export default function Frog() {
                   🐸 Show me the rewards for my frog!
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* MOMENTUM MODE: Keep the flow going prompt */}
+        {showMomentumPrompt && momentumSuggestion && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={declineMomentumSuggestion} />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6 text-center overflow-hidden">
+                {/* Momentum indicator */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 via-yellow-500 to-green-500 animate-pulse" />
+
+                <div className="text-5xl mb-4">🔥</div>
+                <h2 className="text-xl font-bold text-white mb-2">You're On Fire!</h2>
+                <p className="text-white/60 text-sm mb-2">
+                  {momentumStreak} tasks completed in a row!
+                </p>
+                <p className="text-orange-400 text-sm mb-6">
+                  Keep the momentum going?
+                </p>
+
+                {/* Suggested task */}
+                <div className="glass-card bg-white/5 p-4 rounded-xl mb-6 text-left">
+                  <p className="text-white/50 text-xs uppercase tracking-wider mb-2">Similar task ready:</p>
+                  <div className="flex items-center gap-3">
+                    <div className="glass-icon-sm w-10 h-10 flex items-center justify-center">
+                      <span className="text-xl">{CATEGORIES[momentumSuggestion.category]?.emoji}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{momentumSuggestion.title}</p>
+                      <p className="text-white/50 text-xs">
+                        {momentumSuggestion.difficulty}⭐ • ~{momentumSuggestion.estimatedMinutes || 25} min
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={acceptMomentumSuggestion}
+                    className="w-full glass-button py-4 rounded-2xl text-white font-semibold bg-gradient-to-r from-orange-500/30 to-yellow-500/30 border-orange-500/30 hover:from-orange-500/40 hover:to-yellow-500/40 transition-all"
+                  >
+                    <span className="mr-2">⚡</span>
+                    Keep Going! (5 min)
+                  </button>
+
+                  <button
+                    onClick={declineMomentumSuggestion}
+                    className="w-full glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                  >
+                    Take a break instead
+                  </button>
+                </div>
+
+                <p className="text-white/40 text-xs mt-4">
+                  💡 Capitalizing on hyperfocus can double your productivity!
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DISTRACTION JOURNAL: Capture what pulled attention away */}
+        {showDistractionCapture && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative w-full max-w-sm mx-4 animate-slide-up">
+              <div className="glass-card p-6">
+                <div className="text-center mb-6">
+                  <div className="text-5xl mb-3">📓</div>
+                  <h2 className="text-xl font-bold text-white mb-2">What Pulled You Away?</h2>
+                  <p className="text-white/60 text-sm">
+                    No judgment - tracking helps find patterns!
+                  </p>
+                </div>
+
+                {/* Quick select categories */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {DISTRACTION_CATEGORIES.slice(0, 6).map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => recordDistraction(cat.id)}
+                      className="glass-button p-3 rounded-xl flex flex-col items-center gap-1 hover:bg-white/10 transition-colors"
+                    >
+                      <span className="text-2xl">{cat.emoji}</span>
+                      <span className="text-[10px] text-white/60 text-center leading-tight">{cat.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* More options */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {DISTRACTION_CATEGORIES.slice(6).map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => recordDistraction(cat.id)}
+                      className="glass-button p-3 rounded-xl flex flex-col items-center gap-1 hover:bg-white/10 transition-colors"
+                    >
+                      <span className="text-2xl">{cat.emoji}</span>
+                      <span className="text-[10px] text-white/60 text-center leading-tight">{cat.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Pattern insights if we have data */}
+                {Object.keys(distractionPatterns).length > 0 && (
+                  <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                    <p className="text-blue-300 text-xs font-medium mb-1">💡 Your patterns:</p>
+                    {getDistractionTips(distractionPatterns).slice(0, 1).map((tip, i) => (
+                      <p key={i} className="text-white/60 text-xs">{tip}</p>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      setShowDistractionCapture(false);
+                      setFocusTask(null);
+                      setScreen('tasks');
+                    }}
+                    className="w-full glass-button py-3 rounded-xl text-white/60 hover:text-white transition-colors"
+                  >
+                    Skip for now
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
