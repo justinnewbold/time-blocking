@@ -1110,6 +1110,73 @@ const getHyperfocusMessage = (minutes) => {
   return sorted.find(m => minutes >= m.duration) || HYPERFOCUS_MESSAGES[0];
 };
 
+// TASK AGING: Get age category and styling for a task
+const TASK_AGE_CATEGORIES = [
+  { maxDays: 1, label: 'Fresh', emoji: '✨', color: 'green', bonusXP: 0 },
+  { maxDays: 3, label: 'Recent', emoji: '🌱', color: 'green', bonusXP: 0 },
+  { maxDays: 7, label: 'Aging', emoji: '🍂', color: 'yellow', bonusXP: 5 },
+  { maxDays: 14, label: 'Dusty', emoji: '🕸️', color: 'orange', bonusXP: 10 },
+  { maxDays: 30, label: 'Ancient', emoji: '🏺', color: 'red', bonusXP: 20 },
+  { maxDays: Infinity, label: 'Fossil', emoji: '🦴', color: 'purple', bonusXP: 30 }
+];
+
+const getTaskAge = (createdAt) => {
+  if (!createdAt) return TASK_AGE_CATEGORIES[0];
+  const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  return TASK_AGE_CATEGORIES.find(cat => days <= cat.maxDays) || TASK_AGE_CATEGORIES[TASK_AGE_CATEGORIES.length - 1];
+};
+
+const getTaskAgeDays = (createdAt) => {
+  if (!createdAt) return 0;
+  return Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
+};
+
+// MICRO-WINS: Celebration messages for different win types
+const MICRO_WIN_MESSAGES = {
+  start: [
+    { emoji: '🚀', text: 'Blast off! You started!' },
+    { emoji: '💪', text: 'Starting is the hardest part!' },
+    { emoji: '⚡', text: 'Initiation complete!' },
+    { emoji: '🎬', text: 'Action!' }
+  ],
+  subtask: [
+    { emoji: '✅', text: 'Subtask crushed!' },
+    { emoji: '🧩', text: 'Piece by piece!' },
+    { emoji: '📦', text: 'One down!' },
+    { emoji: '🎯', text: 'Bullseye!' }
+  ],
+  milestone5: [
+    { emoji: '⏱️', text: '5 minutes in! Keep going!' },
+    { emoji: '🌟', text: 'First 5 done!' }
+  ],
+  milestone15: [
+    { emoji: '🔥', text: '15 minutes! On fire!' },
+    { emoji: '💫', text: 'Quarter hour champion!' }
+  ],
+  milestone25: [
+    { emoji: '🏆', text: 'Full pomodoro! Legend!' },
+    { emoji: '👑', text: '25 minutes of focus!' }
+  ],
+  halfway: [
+    { emoji: '🎉', text: 'Halfway there!' },
+    { emoji: '⭐', text: 'Past the midpoint!' }
+  ]
+};
+
+const getRandomMicroWin = (type) => {
+  const messages = MICRO_WIN_MESSAGES[type] || MICRO_WIN_MESSAGES.start;
+  return messages[Math.floor(Math.random() * messages.length)];
+};
+
+// DAILY INTENTION: Prompts for setting intention
+const INTENTION_PROMPTS = [
+  "What ONE task would make today feel successful?",
+  "If you could only do ONE thing, what matters most?",
+  "What will future-you thank you for completing?",
+  "Which task has been weighing on you?",
+  "What would give you the biggest sense of relief?"
+];
+
 // Glass Icon Button Component
 function GlassIconButton({ icon, onClick, active, size = 'md', badge, className = '' }) {
   const sizes = {
@@ -1377,6 +1444,21 @@ export default function Frog() {
   const [sessionStartTime, setSessionStartTime] = useState(null); // When current app session started
   const [showHyperfocusWarning, setShowHyperfocusWarning] = useState(false);
   const [hyperfocusExtensions, setHyperfocusExtensions] = useState(0); // How many times they've extended
+
+  // DAILY INTENTION / NORTH STAR - The ONE task that makes today meaningful
+  const [dailyIntention, setDailyIntention] = useState(null); // Task ID of today's north star
+  const [showIntentionPicker, setShowIntentionPicker] = useState(false);
+  const [intentionSetDate, setIntentionSetDate] = useState(null); // Track when intention was set
+
+  // TASK AGING - Visual indicators for how long tasks have been sitting
+  const [taskCreatedDates, setTaskCreatedDates] = useState({}); // {taskId: createdAt ISO string}
+
+  // MICRO-WINS - Frequent celebration triggers
+  const [microWinEnabled, setMicroWinEnabled] = useState(true);
+  const [showMicroWin, setShowMicroWin] = useState(false);
+  const [microWinType, setMicroWinType] = useState(null); // 'start', 'subtask', 'milestone', 'halfway'
+  const [microWinMessage, setMicroWinMessage] = useState('');
+  const [focusMilestones, setFocusMilestones] = useState([]); // Track which milestones hit this session
 
   const [userId, setUserId] = useState(null);
   
@@ -1774,6 +1856,35 @@ export default function Frog() {
         setHyperfocusThreshold(savedThreshold);
         // Start session timer when app loads
         setSessionStartTime(Date.now());
+
+        // DAILY INTENTION: Load today's intention if set
+        const savedIntention = Storage.get('dailyIntention', null);
+        const savedIntentionDate = Storage.get('intentionSetDate', null);
+        if (savedIntention && savedIntentionDate) {
+          const today = new Date().toDateString();
+          const intentionDay = new Date(savedIntentionDate).toDateString();
+          if (today === intentionDay) {
+            // Same day - restore intention
+            setDailyIntention(savedIntention);
+            setIntentionSetDate(savedIntentionDate);
+          } else {
+            // New day - clear old intention and prompt for new one
+            setDailyIntention(null);
+            setIntentionSetDate(null);
+            Storage.set('dailyIntention', null);
+            Storage.set('intentionSetDate', null);
+          }
+        }
+
+        // TASK AGING: Load created dates for all tasks
+        const savedCreatedDates = Storage.get('taskCreatedDates', {});
+        if (Object.keys(savedCreatedDates).length > 0) {
+          setTaskCreatedDates(savedCreatedDates);
+        }
+
+        // MICRO-WINS: Load settings
+        const savedMicroWinEnabled = Storage.get('microWinEnabled', true);
+        setMicroWinEnabled(savedMicroWinEnabled);
 
         // Check for rollover tasks (from previous days)
         checkRolloverTasks();
@@ -2179,6 +2290,46 @@ export default function Frog() {
         if (timerSeconds === 0) {
           setTimerMinutes(m => m - 1);
           setTimerSeconds(59);
+
+          // MICRO-WINS: Check for time milestones when minutes decrement
+          if (microWinEnabled && timerStartTime) {
+            const elapsedMinutes = Math.floor((Date.now() - timerStartTime) / 60000);
+            const totalMinutes = Math.floor((Date.now() - timerStartTime) / 60000) + timerMinutes;
+
+            // Time-based milestones
+            const milestones = [
+              { minutes: 5, type: 'milestone5' },
+              { minutes: 15, type: 'milestone15' },
+              { minutes: 25, type: 'milestone25' }
+            ];
+
+            for (const milestone of milestones) {
+              if (elapsedMinutes >= milestone.minutes && !focusMilestones.includes(milestone.minutes)) {
+                setFocusMilestones(prev => [...prev, milestone.minutes]);
+                const win = getRandomMicroWin(milestone.type);
+                setMicroWinType(milestone.type);
+                setMicroWinMessage(win);
+                setShowMicroWin(true);
+                Haptics.success();
+                setTimeout(() => setShowMicroWin(false), 2000);
+                break;
+              }
+            }
+
+            // Halfway milestone (if session is 6+ minutes)
+            if (totalMinutes >= 6) {
+              const halfway = Math.floor(totalMinutes / 2);
+              if (elapsedMinutes >= halfway && !focusMilestones.includes('halfway')) {
+                setFocusMilestones(prev => [...prev, 'halfway']);
+                const win = getRandomMicroWin('halfway');
+                setMicroWinType('halfway');
+                setMicroWinMessage(win);
+                setShowMicroWin(true);
+                Haptics.success();
+                setTimeout(() => setShowMicroWin(false), 2000);
+              }
+            }
+          }
         } else {
           setTimerSeconds(s => s - 1);
         }
@@ -2225,7 +2376,7 @@ export default function Frog() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [timerRunning, timerMinutes, timerSeconds, focusTask]);
+  }, [timerRunning, timerMinutes, timerSeconds, focusTask, microWinEnabled, timerStartTime, focusMilestones]);
 
   // Update document title with timer status
   useEffect(() => {
@@ -2307,6 +2458,20 @@ export default function Frog() {
     setTimerRunning(true);
     setTimerStartTime(Date.now());
     setScreen('focus');
+
+    // MICRO-WINS: Reset milestones for new session and trigger start celebration
+    setFocusMilestones([]);
+    if (microWinEnabled) {
+      // Trigger start micro-win after brief delay
+      setTimeout(() => {
+        const win = getRandomMicroWin('start');
+        setMicroWinType('start');
+        setMicroWinMessage(win);
+        setShowMicroWin(true);
+        Haptics.success();
+        setTimeout(() => setShowMicroWin(false), 2000);
+      }, 500);
+    }
   };
 
   // AMBIENT SOUND: Stop ambient sound (defined early for use in handleCompleteTask)
@@ -2355,10 +2520,16 @@ export default function Frog() {
     const baseXP = task.difficulty * 10;
     const frogBonus = task.frog ? 20 : 0;
 
+    // TASK AGING: Bonus XP for completing old tasks
+    const agingBonus = taskCreatedDates[task.id] ? getTaskAge(taskCreatedDates[task.id]).bonusXP : 0;
+
+    // DAILY INTENTION: Extra bonus for completing your north star
+    const intentionBonus = (dailyIntention === task.id) ? 15 : 0;
+
     // REWARD VARIETY: Check for bonus XP surprise
     const gotBonusXP = checkBonusXP(rewardStreak);
     const bonusMultiplier = gotBonusXP ? 1.5 : 1;
-    const earnedXP = Math.round((baseXP + frogBonus) * bonusMultiplier);
+    const earnedXP = Math.round((baseXP + frogBonus + agingBonus + intentionBonus) * bonusMultiplier);
     setBonusXPActive(gotBonusXP);
 
     // REWARD VARIETY: Update reward streak and get encouraging message
@@ -2634,6 +2805,16 @@ export default function Frog() {
       return updated;
     });
 
+    // DAILY INTENTION: Clear if we just completed our north star task
+    if (dailyIntention === task.id) {
+      setDailyIntention(null);
+      setIntentionSetDate(null);
+      Storage.set('dailyIntention', null);
+      Storage.set('intentionSetDate', null);
+      // Show extra celebration - they completed their ONE THING!
+      Haptics.success();
+    }
+
     // FUTURE SELF: Prompt for message after completing (especially for frogs or hard tasks)
     if (task.frog || task.difficulty >= 4) {
       // Show prompt after transition screen
@@ -2648,7 +2829,7 @@ export default function Frog() {
 
     Storage.set('xp', newXP);
     Storage.set('level', Math.floor(newXP / 100) + 1);
-  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive, sensoryPreferences, accountabilityPartner, emergencyMode, momentumStreak, showTransition, recordTaskDNA, stopAmbientSound, bestQuickWinStreak, breakReminderEnabled, breaksTaken]);
+  }, [xp, completedTasks.length, userId, timerStartTime, checkAchievements, tasks, energy, rewardStreak, lastRewardType, settings.gentleLanguage, bodyDoublingActive, sensoryPreferences, accountabilityPartner, emergencyMode, momentumStreak, showTransition, recordTaskDNA, stopAmbientSound, bestQuickWinStreak, breakReminderEnabled, breaksTaken, taskCreatedDates, dailyIntention]);
 
   // TRANSITION MOMENTUM: Find the best next task to suggest
   const findNextSuggestedTask = useCallback((remainingTasks, currentEnergy, completedTask) => {
@@ -3449,6 +3630,90 @@ export default function Frog() {
     Haptics.success();
   }, []);
 
+  // DAILY INTENTION: Set today's north star task
+  const setTodaysIntention = useCallback((taskId) => {
+    const now = new Date().toISOString();
+    setDailyIntention(taskId);
+    setIntentionSetDate(now);
+    Storage.set('dailyIntention', taskId);
+    Storage.set('intentionSetDate', now);
+    setShowIntentionPicker(false);
+    Haptics.success();
+  }, []);
+
+  // DAILY INTENTION: Clear intention
+  const clearDailyIntention = useCallback(() => {
+    setDailyIntention(null);
+    setIntentionSetDate(null);
+    Storage.set('dailyIntention', null);
+    Storage.set('intentionSetDate', null);
+  }, []);
+
+  // TASK AGING: Track when a task is created
+  const trackTaskCreation = useCallback((taskId) => {
+    const now = new Date().toISOString();
+    setTaskCreatedDates(prev => {
+      const updated = { ...prev, [taskId]: now };
+      Storage.set('taskCreatedDates', updated);
+      return updated;
+    });
+  }, []);
+
+  // TASK AGING: Get bonus XP for completing old tasks
+  const getAgingBonusXP = useCallback((taskId) => {
+    const createdAt = taskCreatedDates[taskId];
+    if (!createdAt) return 0;
+    const age = getTaskAge(createdAt);
+    return age.bonusXP;
+  }, [taskCreatedDates]);
+
+  // MICRO-WINS: Trigger a micro-win celebration
+  const triggerMicroWin = useCallback((type) => {
+    if (!microWinEnabled) return;
+    const win = getRandomMicroWin(type);
+    setMicroWinType(type);
+    setMicroWinMessage(win);
+    setShowMicroWin(true);
+    Haptics.success();
+
+    // Auto-dismiss after 2 seconds
+    setTimeout(() => {
+      setShowMicroWin(false);
+    }, 2000);
+  }, [microWinEnabled]);
+
+  // MICRO-WINS: Check focus milestones during timer
+  const checkFocusMilestones = useCallback((elapsedMinutes, totalMinutes) => {
+    if (!microWinEnabled) return;
+
+    // Check for time-based milestones
+    const milestones = [
+      { minutes: 5, type: 'milestone5' },
+      { minutes: 15, type: 'milestone15' },
+      { minutes: 25, type: 'milestone25' }
+    ];
+
+    for (const milestone of milestones) {
+      if (elapsedMinutes >= milestone.minutes && !focusMilestones.includes(milestone.minutes)) {
+        setFocusMilestones(prev => [...prev, milestone.minutes]);
+        triggerMicroWin(milestone.type);
+        break; // Only one celebration at a time
+      }
+    }
+
+    // Check for halfway milestone
+    const halfway = Math.floor(totalMinutes / 2);
+    if (halfway >= 3 && elapsedMinutes >= halfway && !focusMilestones.includes('halfway')) {
+      setFocusMilestones(prev => [...prev, 'halfway']);
+      triggerMicroWin('halfway');
+    }
+  }, [microWinEnabled, focusMilestones, triggerMicroWin]);
+
+  // MICRO-WINS: Reset milestones when starting new focus session
+  const resetFocusMilestones = useCallback(() => {
+    setFocusMilestones([]);
+  }, []);
+
   // Delete a task
   const handleDeleteTask = useCallback((taskId) => {
     Haptics.impact('heavy');
@@ -3614,7 +3879,10 @@ export default function Frog() {
         estimatedMinutes: newTask.estimatedMinutes,
         frog: false
       }]);
-      
+
+      // TASK AGING: Track when this task was created
+      trackTaskCreation(createdTask.id);
+
       setSyncStatus('synced');
     } catch (error) {
       console.error('Error creating task:', error);
@@ -3631,6 +3899,9 @@ export default function Frog() {
         frog: false
       };
       setTasks(prev => [...prev, localTask]);
+
+      // TASK AGING: Track when this task was created
+      trackTaskCreation(localTask.id);
     }
     
     setNewTask({ title: '', category: 'personal', difficulty: 2, estimatedMinutes: 25, recurrence: 'none', dueDate: null, dueReminder: 'none' });
@@ -3714,7 +3985,16 @@ export default function Frog() {
     if (newCompleted) {
       const earnedXP = 2; // Small XP for subtask
       setXp(prev => prev + earnedXP);
-      
+
+      // MICRO-WINS: Celebrate subtask completion
+      if (microWinEnabled) {
+        const win = getRandomMicroWin('subtask');
+        setMicroWinType('subtask');
+        setMicroWinMessage(win);
+        setShowMicroWin(true);
+        setTimeout(() => setShowMicroWin(false), 1500);
+      }
+
       // Update in Supabase
       try {
         const newTotalXP = xp + earnedXP;
@@ -4583,6 +4863,29 @@ export default function Frog() {
                           {'⭐'.repeat(task.difficulty)}
                         </span>
                         {task.frog && <span className="text-sm">🐸</span>}
+                        {dailyIntention === task.id && <span className="text-sm" title="Today's North Star">⭐</span>}
+                        {/* TASK AGING INDICATOR */}
+                        {taskCreatedDates[task.id] && (() => {
+                          const age = getTaskAge(taskCreatedDates[task.id]);
+                          const days = getTaskAgeDays(taskCreatedDates[task.id]);
+                          if (days >= 3) { // Only show for aging tasks
+                            return (
+                              <span
+                                className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                  age.color === 'yellow' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  age.color === 'orange' ? 'bg-orange-500/20 text-orange-400' :
+                                  age.color === 'red' ? 'bg-red-500/20 text-red-400' :
+                                  age.color === 'purple' ? 'bg-purple-500/20 text-purple-400' :
+                                  'bg-white/10 text-white/50'
+                                }`}
+                                title={`${age.label} - ${days} days old (+${age.bonusXP} bonus XP)`}
+                              >
+                                {age.emoji} {days}d
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                         {task.recurrence && task.recurrence !== 'none' && (
                           <span className="text-xs text-blue-400">🔄</span>
                         )}
@@ -4757,6 +5060,20 @@ export default function Frog() {
 
         {/* Floating Action Buttons */}
         <div className="fixed bottom-24 right-4 flex flex-col gap-3 z-30">
+          {/* DAILY INTENTION: Set your North Star task */}
+          {tasks.length > 0 && (
+            <button
+              onClick={() => { Haptics.light(); setShowIntentionPicker(true); }}
+              className={`glass-icon w-14 h-14 flex items-center justify-center text-2xl shadow-lg hover:scale-110 active:scale-95 transition-transform ${
+                dailyIntention
+                  ? 'bg-gradient-to-br from-yellow-500/30 to-orange-500/30 border-2 border-yellow-400/40'
+                  : 'bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-2 border-yellow-400/20'
+              }`}
+              title={dailyIntention ? "Your North Star is set!" : "Set your North Star task"}
+            >
+              ⭐
+            </button>
+          )}
           {/* ACCOMPLISHMENT JOURNAL: View your wins */}
           {completedTasks.length > 0 && (
             <button
@@ -5347,6 +5664,32 @@ export default function Frog() {
                       >
                         <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
                           hyperfocusGuardEnabled ? 'right-1' : 'left-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Micro-Wins Celebrations */}
+                    <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">🎉</span>
+                        <div>
+                          <p className="text-white font-medium">Micro-Wins</p>
+                          <p className="text-white/40 text-xs">
+                            Celebrate starts, milestones, and subtasks
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setMicroWinEnabled(prev => !prev);
+                          Storage.set('microWinEnabled', !microWinEnabled);
+                        }}
+                        className={`w-12 h-7 rounded-full transition-all relative ${
+                          microWinEnabled ? 'bg-green-500' : 'bg-white/20'
+                        }`}
+                      >
+                        <div className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-all ${
+                          microWinEnabled ? 'right-1' : 'left-1'
                         }`} />
                       </button>
                     </div>
@@ -7395,6 +7738,91 @@ export default function Frog() {
                     ? "Every return is a win! You're doing great. 💪"
                     : "Ready when you are."}
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DAILY INTENTION PICKER MODAL */}
+        {showIntentionPicker && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowIntentionPicker(false)} />
+            <div className="relative w-full max-w-md mx-4 animate-slide-up max-h-[80vh] overflow-auto">
+              <div className="glass-card p-6">
+                <div className="text-4xl text-center mb-4">⭐</div>
+                <h2 className="text-xl font-bold text-white text-center mb-2">Set Your North Star</h2>
+                <p className="text-white/60 text-center text-sm mb-6">
+                  {INTENTION_PROMPTS[Math.floor(Math.random() * INTENTION_PROMPTS.length)]}
+                </p>
+
+                <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+                  {tasks.map(task => {
+                    const isCurrentIntention = dailyIntention === task.id;
+                    const category = CATEGORIES[task.category] || CATEGORIES.personal;
+                    return (
+                      <button
+                        key={task.id}
+                        onClick={() => setTodaysIntention(task.id)}
+                        className={`w-full p-4 rounded-xl text-left transition-all ${
+                          isCurrentIntention
+                            ? 'bg-yellow-500/20 border-2 border-yellow-500/50'
+                            : 'glass-card hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{category?.emoji}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-medium truncate ${isCurrentIntention ? 'text-yellow-400' : 'text-white'}`}>
+                              {task.title}
+                            </p>
+                            {task.frog && <span className="text-xs text-green-400">🐸 Your frog</span>}
+                          </div>
+                          {isCurrentIntention && <span className="text-xl">⭐</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {tasks.length === 0 && (
+                  <p className="text-white/40 text-center py-8">
+                    No tasks yet! Add some tasks first.
+                  </p>
+                )}
+
+                <div className="flex gap-3 mt-6">
+                  {dailyIntention && (
+                    <button
+                      onClick={() => {
+                        clearDailyIntention();
+                        setShowIntentionPicker(false);
+                      }}
+                      className="flex-1 glass-button py-3 rounded-xl text-white/50"
+                    >
+                      Clear Intention
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowIntentionPicker(false)}
+                    className="flex-1 glass-button py-3 rounded-xl text-white/70"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MICRO-WIN CELEBRATION POPUP */}
+        {showMicroWin && microWinMessage && (
+          <div className="fixed inset-x-0 top-20 z-50 flex justify-center pointer-events-none">
+            <div className="animate-bounce-in">
+              <div className="glass-card px-6 py-3 bg-gradient-to-r from-green-500/20 to-yellow-500/20 border border-green-500/30">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{microWinMessage.emoji}</span>
+                  <span className="text-white font-medium">{microWinMessage.text}</span>
+                </div>
               </div>
             </div>
           </div>
